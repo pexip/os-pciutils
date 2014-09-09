@@ -1,5 +1,7 @@
---- a/pcimodules.c
-+++ b/pcimodules.c
+Index: pciutils-3.2.1/pcimodules.c
+===================================================================
+--- /dev/null
++++ pciutils-3.2.1/pcimodules.c
 @@ -0,0 +1,185 @@
 +/*
 + *	pcimodules:  Load all kernel modules for PCI device currently
@@ -186,8 +188,10 @@
 +	match_pci_modules();
 +	return 0;
 +}
---- a/pcimodules.man
-+++ b/pcimodules.man
+Index: pciutils-3.2.1/pcimodules.man
+===================================================================
+--- /dev/null
++++ pciutils-3.2.1/pcimodules.man
 @@ -0,0 +1,92 @@
 +.TH pcimodules 8 "@TODAY@" "@VERSION@" "Linux PCI Utilities"
 +.IX pcimodules

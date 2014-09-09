@@ -1,5 +1,7 @@
---- a/update-pciids.sh	2008-11-11 10:11:51.000000000 +1100
-+++ b/update-pciids.sh	2010-01-27 14:51:06.000000000 +1100
+Index: pciutils-3.2.1/update-pciids.sh
+===================================================================
+--- pciutils-3.2.1.orig/update-pciids.sh
++++ pciutils-3.2.1/update-pciids.sh
 @@ -1,75 +1,130 @@
  #!/bin/sh
  
@@ -26,7 +28,7 @@
 +# Martin Mares.
  
  set -e
--SRC="http://pciids.sourceforge.net/v2.2/pci.ids"
+-SRC="http://pci-ids.ucw.cz/v2.2/pci.ids"
 -DEST=pci.ids
 -PCI_COMPRESSED_IDS=
 -GREP=grep
@@ -38,7 +40,7 @@
 -	exit 1
 -fi
 -
--if [ "$PCI_COMPRESSED_IDS" -eq 1 ] ; then
+-if [ "$PCI_COMPRESSED_IDS" = 1 ] ; then
 -	DECOMP="cat"
 -	SRC="$SRC.gz"
 -	GREP=zgrep
