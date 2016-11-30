@@ -1,3 +1,113 @@
+2016-10-03  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.2.
+
+	* The L1 power management capability is now decoded more
+	  thoroughly. Thanks to Rajat Jain for the patch.
+
+	* The table of configuration registers used by setpci
+	  had a bug in the definition of SUBSYSTEM_VENDOR_ID.
+
+2016-05-22  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.1.
+
+	* Fixed symbol versioning of pci_init().
+
+2016-05-19  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.0.
+
+	* New capabilities decoded: Downstream Port Containment,
+	  Precision Time Measurement. Thanks to Keith Busch and
+	  Jonathan Yong.
+
+	* Domain numbers extended to 31 bits. This will be used by the
+	  Linux kernel on some machines in near future.
+
+	* Enhanced allocation regions are now decoded on Linux.
+
+	* The NetBSD back-end supports PCIe extended configuration space.
+
+	* Updated pci.ids to the current snapshot of the database.
+
+2016-01-03  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.4.1.
+
+	* New capabilities decoded: Process Address Space, Page Request
+	  Interface, Enhanced Allocation. Thanks to David Daney and
+	  David Woodhouse.
+
+	* DevCap SlotPowerLimit is now decoded for all components with
+	  upstream ports.
+
+	* Database mirror at SourceForge moved to GitHub.
+
+	* Updated pci.ids to the current snapshot of the database.
+
+2015-09-14  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.4.0.
+
+	* On Linux, we report NUMA nodes of devices.
+
+	* The sysfs back-end does not die on read errors
+	  of optional attributes. Instead, a warning is produced.
+
+	* Fixed several minor bugs.
+
+	* Updated pci.ids to the current snapshot of the database.
+
+2015-04-09  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.3.1.
+
+	* Removed hacks for backward compatibility with Linux libc5,
+	  which were breaking newer non-glibc Linux systems. Thanks
+	  to Felix Janda.
+
+	* Display VirtIO vendor-specific capability. Patch by Gerd
+	  Hoffmann.
+
+	* Fixed memory leak in name cache.
+
+	* Updated pci.ids to the current snapshot of the database.
+
+2014-11-10  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.3.0.
+	  (celebrating a one-year anniversary of the previous version :))
+
+	* Device names exported by BIOS are displayed on Linux.
+
+	* On Linux systems, HWDB is used to look up device names
+	  when our ID database gives no match. (More precisely,
+	  HWDB is consulted after local pci.ids, but before using
+	  network to query online pci.ids.) Thanks to Tom Gundersen
+	  for the initial patch.
+
+	* Added experimental back-end for OS X / Darwin. Thanks to
+	  Richard Yao for providing it.
+
+	* Filters now support matching by device class. Original
+	  patch by Matthew Wilcox, wrappers for ABI compatibility
+	  by me.
+
+	* Interrupt Pin and Interrupt Line registers are displayed
+	  for bridge devices, too.
+
+	* Several portability bugs have been fixed.
+
+	* Several typos have been fixed. Also, use of questionable
+	  constructs in man pages has been reduced.
+
+	* PCIe link capabilities now include the ASPMOptComp bit.
+
+	* The "CRS Software Visibility" bit is now decoded properly.
+
+	* Updated pci.ids to the current snapshot of the database.
+
 2013-11-10  Martin Mares <mj@ucw.cz>
 
 	* Released as 3.2.1.
@@ -19,7 +129,7 @@
 	* Released as 3.2.0.
 
 	* On newer Linux systems, we use libkmod to look up kernel modules
-	  (modules.pcimap no longer exists.) To facilitate this, libpci
+	  (modules.pcimap no longer exists). To facilitate this, libpci
 	  is able to look up module aliases in sysfs.
 
 	* Various minor bug fixes.
@@ -117,7 +227,7 @@
 	* Updated pci.ids to the today's snapshot of the database.
 
 	* Fixed memory and file descriptor leak in the dump back-end.
-	
+
 	* The SR-IOV capability decoder now prints the VF BAR's.
 	Patch by Chris Wright, cleaned up by me.
 
@@ -359,7 +469,7 @@
 
 	* Makefile: stripping of the binaries during installation can be
 	overridden by the STRIP variable.
-	
+
 	* lib/types.h: We use the integer types from <stdint.h> if the
 	compiler claims C99 support.
 

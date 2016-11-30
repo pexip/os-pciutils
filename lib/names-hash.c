@@ -103,6 +103,8 @@ char
 	    continue;
 	  if (n->src == SRC_CACHE && !(flags & PCI_LOOKUP_CACHE))
 	    continue;
+	  if (n->src == SRC_HWDB && (flags & (PCI_LOOKUP_SKIP_LOCAL | PCI_LOOKUP_NO_HWDB)))
+	    continue;
 	  if (!best || best->src < n->src)
 	    best = n;
 	}

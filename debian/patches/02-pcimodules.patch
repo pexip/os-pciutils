@@ -1,7 +1,7 @@
-Index: pciutils-3.2.1/pcimodules.c
+Index: pciutils-3.5.2/pcimodules.c
 ===================================================================
 --- /dev/null
-+++ pciutils-3.2.1/pcimodules.c
++++ pciutils-3.5.2/pcimodules.c
 @@ -0,0 +1,185 @@
 +/*
 + *	pcimodules:  Load all kernel modules for PCI device currently
@@ -188,10 +188,10 @@ Index: pciutils-3.2.1/pcimodules.c
 +	match_pci_modules();
 +	return 0;
 +}
-Index: pciutils-3.2.1/pcimodules.man
+Index: pciutils-3.5.2/pcimodules.man
 ===================================================================
 --- /dev/null
-+++ pciutils-3.2.1/pcimodules.man
++++ pciutils-3.5.2/pcimodules.man
 @@ -0,0 +1,92 @@
 +.TH pcimodules 8 "@TODAY@" "@VERSION@" "Linux PCI Utilities"
 +.IX pcimodules
@@ -212,7 +212,7 @@ Index: pciutils-3.2.1/pcimodules.man
 +.IP
 +	for module in $(pcimodules) ; do
 +.IP
-+		modprobe -s -k "$module"
++		modprobe -s "$module"
 +.IP
 +	done
 +.PP

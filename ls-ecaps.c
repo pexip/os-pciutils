@@ -137,6 +137,37 @@ cap_aer(struct device *d, int where)
 
 }
 
+static void cap_dpc(struct device *d, int where)
+{
+  u16 l;
+
+  printf("Downstream Port Containment\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_DPC_CAP, 8))
+    return;
+
+  l = get_conf_word(d, where + PCI_DPC_CAP);
+  printf("\t\tDpcCap:\tINT Msg #%d, RPExt%c PoisonedTLP%c SwTrigger%c RP PIO Log %d, DL_ActiveErr%c\n",
+    PCI_DPC_CAP_INT_MSG(l), FLAG(l, PCI_DPC_CAP_RP_EXT), FLAG(l, PCI_DPC_CAP_TLP_BLOCK),
+    FLAG(l, PCI_DPC_CAP_SW_TRIGGER), PCI_DPC_CAP_RP_LOG(l), FLAG(l, PCI_DPC_CAP_DL_ACT_ERR));
+
+  l = get_conf_word(d, where + PCI_DPC_CTL);
+  printf("\t\tDpcCtl:\tTrigger:%x Cmpl%c INT%c ErrCor%c PoisonedTLP%c SwTrigger%c DL_ActiveErr%c\n",
+    PCI_DPC_CTL_TRIGGER(l), FLAG(l, PCI_DPC_CTL_CMPL), FLAG(l, PCI_DPC_CTL_INT),
+    FLAG(l, PCI_DPC_CTL_ERR_COR), FLAG(l, PCI_DPC_CTL_TLP), FLAG(l, PCI_DPC_CTL_SW_TRIGGER),
+    FLAG(l, PCI_DPC_CTL_DL_ACTIVE));
+
+  l = get_conf_word(d, where + PCI_DPC_STATUS);
+  printf("\t\tDpcSta:\tTrigger%c Reason:%02x INT%c RPBusy%c TriggerExt:%02x RP PIO ErrPtr:%02x\n",
+    FLAG(l, PCI_DPC_STS_TRIGGER), PCI_DPC_STS_REASON(l), FLAG(l, PCI_DPC_STS_INT),
+    FLAG(l, PCI_DPC_STS_RP_BUSY), PCI_DPC_STS_TRIGGER_EXT(l), PCI_DPC_STS_PIO_FEP(l));
+
+  l = get_conf_word(d, where + PCI_DPC_SOURCE);
+  printf("\t\tSource:\t%04x\n", l);
+}
+
 static void
 cap_acs(struct device *d, int where)
 {
@@ -202,6 +233,54 @@ cap_ats(struct device *d, int where)
   w = get_conf_word(d, where + PCI_ATS_CTRL);
   printf("\t\tATSCtl:\tEnable%c, Smallest Translation Unit: %02x\n",
 	FLAG(w, PCI_ATS_CTRL_ENABLE), PCI_ATS_CTRL_STU(w));
+}
+
+static void
+cap_pri(struct device *d, int where)
+{
+  u16 w;
+  u32 l;
+
+  printf("Page Request Interface (PRI)\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_PRI_CTRL, 0xc))
+    return;
+
+  w = get_conf_word(d, where + PCI_PRI_CTRL);
+  printf("\t\tPRICtl: Enable%c Reset%c\n",
+	FLAG(w, PCI_PRI_CTRL_ENABLE), FLAG(w, PCI_PRI_CTRL_RESET));
+  w = get_conf_word(d, where + PCI_PRI_STATUS);
+  printf("\t\tPRISta: RF%c UPRGI%c Stopped%c\n",
+	FLAG(w, PCI_PRI_STATUS_RF), FLAG(w, PCI_PRI_STATUS_UPRGI),
+	FLAG(w, PCI_PRI_STATUS_STOPPED));
+  l = get_conf_long(d, where + PCI_PRI_MAX_REQ);
+  printf("\t\tPage Request Capacity: %08x, ", l);
+  l = get_conf_long(d, where + PCI_PRI_ALLOC_REQ);
+  printf("Page Request Allocation: %08x\n", l);
+}
+
+static void
+cap_pasid(struct device *d, int where)
+{
+  u16 w;
+
+  printf("Process Address Space ID (PASID)\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_PASID_CAP, 4))
+    return;
+
+  w = get_conf_word(d, where + PCI_PASID_CAP);
+  printf("\t\tPASIDCap: Exec%c Priv%c, Max PASID Width: %02x\n",
+	FLAG(w, PCI_PASID_CAP_EXEC), FLAG(w, PCI_PASID_CAP_PRIV),
+	PCI_PASID_CAP_WIDTH(w));
+  w = get_conf_word(d, where + PCI_PASID_CTRL);
+  printf("\t\tPASIDCtl: Enable%c Exec%c Priv%c\n",
+	FLAG(w, PCI_PASID_CTRL_ENABLE), FLAG(w, PCI_PASID_CTRL_EXEC),
+	FLAG(w, PCI_PASID_CTRL_PRIV));
 }
 
 static void
@@ -448,55 +527,145 @@ cap_evendor(struct device *d, int where)
     BITS(hdr, 20, 12));
 }
 
+static int l1pm_calc_pwron(int scale, int value)
+{
+  switch (scale)
+    {
+      case 0:
+	return 2 * value;
+      case 1:
+	return 10 * value;
+      case 2:
+	return 100 * value;
+    }
+  return -1;
+}
+
 static void
 cap_l1pm(struct device *d, int where)
 {
-  u32 l1_cap;
-  int power_on_scale;
+  u32 l1_cap, val, scale;
+  int time;
 
   printf("L1 PM Substates\n");
 
   if (verbose < 2)
     return;
 
-  if (!config_fetch(d, where + 4, 4))
+  if (!config_fetch(d, where + PCI_L1PM_SUBSTAT_CAP, 12))
     {
       printf("\t\t<unreadable>\n");
       return;
     }
 
-  l1_cap = get_conf_long(d, where + 4);
+  l1_cap = get_conf_long(d, where + PCI_L1PM_SUBSTAT_CAP);
   printf("\t\tL1SubCap: ");
   printf("PCI-PM_L1.2%c PCI-PM_L1.1%c ASPM_L1.2%c ASPM_L1.1%c L1_PM_Substates%c\n",
-    FLAG(l1_cap, 1),
-    FLAG(l1_cap, 2),
-    FLAG(l1_cap, 4),
-    FLAG(l1_cap, 8),
-    FLAG(l1_cap, 16));
+    FLAG(l1_cap, PCI_L1PM_SUBSTAT_CAP_PM_L12),
+    FLAG(l1_cap, PCI_L1PM_SUBSTAT_CAP_PM_L11),
+    FLAG(l1_cap, PCI_L1PM_SUBSTAT_CAP_ASPM_L12),
+    FLAG(l1_cap, PCI_L1PM_SUBSTAT_CAP_ASPM_L11),
+    FLAG(l1_cap, PCI_L1PM_SUBSTAT_CAP_L1PM_SUPP));
 
-  if (BITS(l1_cap, 0, 1) || BITS(l1_cap, 2, 1))
+  if (l1_cap & PCI_L1PM_SUBSTAT_CAP_PM_L12 || l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
     {
-      printf("\t\t\t  PortCommonModeRestoreTime=%dus ",
-	BITS(l1_cap, 8,8));
+      printf("\t\t\t  PortCommonModeRestoreTime=%dus ", BITS(l1_cap, 8, 8));
+      time = l1pm_calc_pwron(BITS(l1_cap, 16, 2), BITS(l1_cap, 19, 5));
+      if (time != -1)
+	printf("PortTPowerOnTime=%dus\n", time);
+      else
+	printf("PortTPowerOnTime=<error>\n");
+    }
 
-      power_on_scale = BITS(l1_cap, 16, 2);
+  val = get_conf_long(d, where + PCI_L1PM_SUBSTAT_CTL1);
+  printf("\t\tL1SubCtl1: PCI-PM_L1.2%c PCI-PM_L1.1%c ASPM_L1.2%c ASPM_L1.1%c\n",
+    FLAG(val, PCI_L1PM_SUBSTAT_CTL1_PM_L12),
+    FLAG(val, PCI_L1PM_SUBSTAT_CTL1_PM_L11),
+    FLAG(val, PCI_L1PM_SUBSTAT_CTL1_ASPM_L12),
+    FLAG(val, PCI_L1PM_SUBSTAT_CTL1_ASPM_L11));
 
-      printf("PortTPowerOnTime=");
-      switch (power_on_scale)
-	{
-	  case 0:
-	    printf("%dus\n", BITS(l1_cap, 19, 5) * 2);
-	    break;
-	  case 1:
-	    printf("%dus\n", BITS(l1_cap, 19, 5) * 10);
-	    break;
-	  case 2:
-	    printf("%dus\n", BITS(l1_cap, 19, 5) * 100);
-	    break;
-	  default:
-	    printf("<error>\n");
-	    break;
-	}
+  if (l1_cap & PCI_L1PM_SUBSTAT_CAP_PM_L12 || l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
+    printf("\t\t\t   T_CommonMode=%dus", BITS(val, 8, 8));
+
+  if (l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
+    {
+      scale = BITS(val, 29, 3);
+      if (scale > 5)
+	printf(" LTR1.2_Threshold=<error>");
+      else
+	printf(" LTR1.2_Threshold=%lldns", BITS(val, 16, 10) * (unsigned long long) cap_ltr_scale(scale));
+    }
+  printf("\n");
+
+  val = get_conf_long(d, where + PCI_L1PM_SUBSTAT_CTL2);
+  printf("\t\tL1SubCtl2:");
+  if (l1_cap & PCI_L1PM_SUBSTAT_CAP_PM_L12 || l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
+    {
+      time = l1pm_calc_pwron(BITS(val, 0, 2), BITS(val, 3, 5));
+      if (time != -1)
+	printf(" T_PwrOn=%dus", time);
+      else
+	printf(" T_PwrOn=<error>");
+    }
+  printf("\n");
+}
+
+static void
+cap_ptm(struct device *d, int where)
+{
+  u32 buff;
+  u16 clock;
+
+  printf("Precision Time Measurement\n");
+
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + 4, 8))
+    {
+      printf("\t\t<unreadable>\n");
+      return;
+    }
+
+  buff = get_conf_long(d, where + 4);
+  printf("\t\tPTMCap: ");
+  printf("Requester:%c Responder:%c Root:%c\n",
+    FLAG(buff, 0x1),
+    FLAG(buff, 0x2),
+    FLAG(buff, 0x4));
+
+  clock = BITS(buff, 8, 8);
+  printf("\t\tPTMClockGranularity: ");
+  switch (clock)
+    {
+      case 0x00:
+        printf("Unimplemented\n");
+        break;
+      case 0xff:
+        printf("Greater than 254ns\n");
+        break;
+      default:
+        printf("%huns\n", clock);
+    }
+
+  buff = get_conf_long(d, where + 8);
+  printf("\t\tPTMControl: ");
+  printf("Enabled:%c RootSelected:%c\n",
+    FLAG(buff, 0x1),
+    FLAG(buff, 0x2));
+
+  clock = BITS(buff, 8, 8);
+  printf("\t\tPTMEffectiveGranularity: ");
+  switch (clock)
+    {
+      case 0x00:
+        printf("Unknown\n");
+        break;
+      case 0xff:
+        printf("Greater than 254ns\n");
+        break;
+      default:
+        printf("%huns\n", clock);
     }
 }
 
@@ -531,6 +700,9 @@ show_ext_caps(struct device *d)
 	{
 	  case PCI_EXT_CAP_ID_AER:
 	    cap_aer(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_DPC:
+	    cap_dpc(d, where);
 	    break;
 	  case PCI_EXT_CAP_ID_VC:
 	  case PCI_EXT_CAP_ID_VC2:
@@ -572,14 +744,23 @@ show_ext_caps(struct device *d)
 	  case PCI_EXT_CAP_ID_SRIOV:
 	    cap_sriov(d, where);
 	    break;
+	  case PCI_EXT_CAP_ID_PRI:
+	    cap_pri(d, where);
+	    break;
 	  case PCI_EXT_CAP_ID_TPH:
 	    cap_tph(d, where);
 	    break;
 	  case PCI_EXT_CAP_ID_LTR:
 	    cap_ltr(d, where);
 	    break;
+	  case PCI_EXT_CAP_ID_PASID:
+	    cap_pasid(d, where);
+	    break;
 	  case PCI_EXT_CAP_ID_L1PM:
 	    cap_l1pm(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_PTM:
+	    cap_ptm(d, where);
 	    break;
 	  default:
 	    printf("#%02x\n", id);

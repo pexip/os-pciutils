@@ -1,11 +1,11 @@
 # Makefile for The PCI Utilities
-# (c) 1998--2013 Martin Mares <mj@ucw.cz>
+# (c) 1998--2016 Martin Mares <mj@ucw.cz>
 
 OPT=-O2
 CFLAGS=$(OPT) -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes
 
-VERSION=3.2.1
-DATE=2013-11-10
+VERSION=3.5.2
+DATE=2016-10-03
 
 # Host OS and release (override if you are cross-compiling)
 HOST=
@@ -23,6 +23,9 @@ SHARED=no
 
 # Use libkmod to resolve kernel modules on Linux (yes/no, default: detect)
 LIBKMOD=
+
+# Use libudev to resolve device names using hwdb on Linux (yes/no, default: detect)
+HWDB=
 
 # ABI version suffix in the name of the shared library
 # (as we use proper symbol versioning, this seldom needs changing)
@@ -66,7 +69,7 @@ force:
 lib/config.h lib/config.mk:
 	cd lib && ./configure
 
-lspci: lspci.o ls-vpd.o ls-caps.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o common.o lib/$(PCILIB)
+lspci: lspci.o ls-vpd.o ls-caps.o ls-caps-vendor.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o common.o lib/$(PCILIB)
 setpci: setpci.o common.o lib/$(PCILIB)
 
 LSPCIINC=lspci.h pciutils.h $(PCIINC)
@@ -114,7 +117,11 @@ install: all
 	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL) -c -m 644 pcilib.7 $(DESTDIR)$(MANDIR)/man7
 ifeq ($(SHARED),yes)
-	ln -sf $(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so$(ABI_VERSION)
+ifeq ($(LIBEXT),dylib)
+	ln -sf $(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME)$(ABI_VERSION).$(LIBEXT)
+else
+	ln -sf $(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME).$(LIBEXT)$(ABI_VERSION)
+endif
 endif
 
 ifeq ($(SHARED),yes)
@@ -130,7 +137,11 @@ install-lib: $(PCIINC_INS) lib/$(PCILIBPC) install-pcilib
 	$(INSTALL) -c -m 644 $(PCIINC_INS) $(DESTDIR)$(INCDIR)/pci
 	$(INSTALL) -c -m 644 lib/$(PCILIBPC) $(DESTDIR)$(PKGCFDIR)
 ifeq ($(SHARED),yes)
-	ln -sf $(LIBNAME).so$(ABI_VERSION) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so
+ifeq ($(LIBEXT),dylib)
+	ln -sf $(LIBNAME)$(ABI_VERSION).$(LIBEXT) $(DESTDIR)$(LIBDIR)/$(LIBNAME).$(LIBEXT)
+else
+	ln -sf $(LIBNAME).$(LIBEXT)$(ABI_VERSION) $(DESTDIR)$(LIBDIR)/$(LIBNAME).$(LIBEXT)
+endif
 endif
 
 uninstall: all

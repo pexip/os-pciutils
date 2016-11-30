@@ -1,7 +1,7 @@
-Index: pciutils-3.2.1/update-pciids.sh
+Index: pciutils-3.5.2/update-pciids.sh
 ===================================================================
---- pciutils-3.2.1.orig/update-pciids.sh
-+++ pciutils-3.2.1/update-pciids.sh
+--- pciutils-3.5.2.orig/update-pciids.sh
++++ pciutils-3.5.2/update-pciids.sh
 @@ -1,75 +1,130 @@
  #!/bin/sh
  
