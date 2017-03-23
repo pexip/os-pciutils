@@ -659,22 +659,27 @@ static void cap_express_dev(struct device *d, int where, int type)
   u16 w;
 
   t = get_conf_long(d, where + PCI_EXP_DEVCAP);
-  printf("\t\tDevCap:\tMaxPayload %d bytes, PhantFunc %d, Latency L0s %s, L1 %s\n",
+  printf("\t\tDevCap:\tMaxPayload %d bytes, PhantFunc %d",
 	128 << (t & PCI_EXP_DEVCAP_PAYLOAD),
-	(1 << ((t & PCI_EXP_DEVCAP_PHANTOM) >> 3)) - 1,
+	(1 << ((t & PCI_EXP_DEVCAP_PHANTOM) >> 3)) - 1);
+  if ((type == PCI_EXP_TYPE_ENDPOINT) || (type == PCI_EXP_TYPE_LEG_END))
+    printf(", Latency L0s %s, L1 %s",
 	latency_l0s((t & PCI_EXP_DEVCAP_L0S) >> 6),
 	latency_l1((t & PCI_EXP_DEVCAP_L1) >> 9));
+  printf("\n");
   printf("\t\t\tExtTag%c", FLAG(t, PCI_EXP_DEVCAP_EXT_TAG));
   if ((type == PCI_EXP_TYPE_ENDPOINT) || (type == PCI_EXP_TYPE_LEG_END) ||
       (type == PCI_EXP_TYPE_UPSTREAM) || (type == PCI_EXP_TYPE_PCI_BRIDGE))
     printf(" AttnBtn%c AttnInd%c PwrInd%c",
 	FLAG(t, PCI_EXP_DEVCAP_ATN_BUT),
 	FLAG(t, PCI_EXP_DEVCAP_ATN_IND), FLAG(t, PCI_EXP_DEVCAP_PWR_IND));
-  printf(" RBE%c FLReset%c",
-	FLAG(t, PCI_EXP_DEVCAP_RBE),
+  printf(" RBE%c",
+	FLAG(t, PCI_EXP_DEVCAP_RBE));
+  if ((type == PCI_EXP_TYPE_ENDPOINT) || (type == PCI_EXP_TYPE_LEG_END))
+    printf(" FLReset%c",
 	FLAG(t, PCI_EXP_DEVCAP_FLRESET));
   if (type == PCI_EXP_TYPE_UPSTREAM)
-    printf("SlotPowerLimit %.3fW",
+    printf(" SlotPowerLimit %.3fW",
 	power_limit((t & PCI_EXP_DEVCAP_PWR_VAL) >> 18,
 		    (t & PCI_EXP_DEVCAP_PWR_SCL) >> 26));
   printf("\n");
@@ -691,9 +696,10 @@ static void cap_express_dev(struct device *d, int where, int type)
 	FLAG(w, PCI_EXP_DEVCTL_PHANTOM),
 	FLAG(w, PCI_EXP_DEVCTL_AUX_PME),
 	FLAG(w, PCI_EXP_DEVCTL_NOSNOOP));
-  if (type == PCI_EXP_TYPE_PCI_BRIDGE || type == PCI_EXP_TYPE_PCIE_BRIDGE)
+  if (type == PCI_EXP_TYPE_PCI_BRIDGE)
     printf(" BrConfRtry%c", FLAG(w, PCI_EXP_DEVCTL_BCRE));
-  if (type == PCI_EXP_TYPE_ENDPOINT && (t & PCI_EXP_DEVCAP_FLRESET))
+  if (((type == PCI_EXP_TYPE_ENDPOINT) || (type == PCI_EXP_TYPE_LEG_END)) &&
+      (t & PCI_EXP_DEVCAP_FLRESET))
     printf(" FLReset%c", FLAG(w, PCI_EXP_DEVCTL_FLRESET));
   printf("\n\t\t\tMaxPayload %d bytes, MaxReadReq %d bytes\n",
 	128 << ((w & PCI_EXP_DEVCTL_PAYLOAD) >> 5),
@@ -717,6 +723,8 @@ static char *link_speed(int speed)
 	return "2.5GT/s";
       case 2:
 	return "5GT/s";
+      case 3:
+	return "8GT/s";
       default:
 	return "unknown";
     }
@@ -726,8 +734,12 @@ static char *aspm_support(int code)
 {
   switch (code)
     {
+      case 0:
+        return "not supported";
       case 1:
 	return "L0s";
+      case 2:
+	return "L1";
       case 3:
 	return "L0s L1";
       default:
@@ -747,7 +759,7 @@ static void cap_express_link(struct device *d, int where, int type)
   u16 w;
 
   t = get_conf_long(d, where + PCI_EXP_LNKCAP);
-  printf("\t\tLnkCap:\tPort #%d, Speed %s, Width x%d, ASPM %s, Latency L0 %s, L1 %s\n",
+  printf("\t\tLnkCap:\tPort #%d, Speed %s, Width x%d, ASPM %s, Exit Latency L0s %s, L1 %s\n",
 	t >> 24,
 	link_speed(t & PCI_EXP_LNKCAP_SPEED), (t & PCI_EXP_LNKCAP_WIDTH) >> 4,
 	aspm_support((t & PCI_EXP_LNKCAP_ASPM) >> 10),
@@ -762,11 +774,10 @@ static void cap_express_link(struct device *d, int where, int type)
   w = get_conf_word(d, where + PCI_EXP_LNKCTL);
   printf("\t\tLnkCtl:\tASPM %s;", aspm_enabled(w & PCI_EXP_LNKCTL_ASPM));
   if ((type == PCI_EXP_TYPE_ROOT_PORT) || (type == PCI_EXP_TYPE_ENDPOINT) ||
-      (type == PCI_EXP_TYPE_LEG_END))
+      (type == PCI_EXP_TYPE_LEG_END) || (type == PCI_EXP_TYPE_PCI_BRIDGE))
     printf(" RCB %d bytes", w & PCI_EXP_LNKCTL_RCB ? 128 : 64);
-  printf(" Disabled%c Retrain%c CommClk%c\n\t\t\tExtSynch%c ClockPM%c AutWidDis%c BWInt%c AutBWInt%c\n",
+  printf(" Disabled%c CommClk%c\n\t\t\tExtSynch%c ClockPM%c AutWidDis%c BWInt%c AutBWInt%c\n",
 	FLAG(w, PCI_EXP_LNKCTL_DISABLE),
-	FLAG(w, PCI_EXP_LNKCTL_RETRAIN),
 	FLAG(w, PCI_EXP_LNKCTL_CLOCK),
 	FLAG(w, PCI_EXP_LNKCTL_XSYNCH),
 	FLAG(w, PCI_EXP_LNKCTL_CLOCKPM),
@@ -916,24 +927,60 @@ static const char *cap_express_dev2_timeout_value(int type)
     }
 }
 
+static const char *cap_express_devcap2_obff(int obff)
+{
+  switch (obff)
+    {
+      case 1:
+        return "Via message";
+      case 2:
+        return "Via WAKE#";
+      case 3:
+        return "Via message/WAKE#";
+      default:
+        return "Not Supported";
+    }
+}
+
+static const char *cap_express_devctl2_obff(int obff)
+{
+  switch (obff)
+    {
+      case 0:
+        return "Disabled";
+      case 1:
+        return "Via message A";
+      case 2:
+        return "Via message B";
+      case 3:
+        return "Via WAKE#";
+      default:
+        return "Unknown";
+    }
+}
+
 static void cap_express_dev2(struct device *d, int where, int type)
 {
   u32 l;
   u16 w;
 
   l = get_conf_long(d, where + PCI_EXP_DEVCAP2);
-  printf("\t\tDevCap2: Completion Timeout: %s, TimeoutDis%c",
+  printf("\t\tDevCap2: Completion Timeout: %s, TimeoutDis%c, LTR%c, OBFF %s",
 	cap_express_dev2_timeout_range(PCI_EXP_DEV2_TIMEOUT_RANGE(l)),
-	FLAG(l, PCI_EXP_DEV2_TIMEOUT_DIS));
+	FLAG(l, PCI_EXP_DEV2_TIMEOUT_DIS),
+	FLAG(l, PCI_EXP_DEVCAP2_LTR),
+	cap_express_devcap2_obff(PCI_EXP_DEVCAP2_OBFF(l)));
   if (type == PCI_EXP_TYPE_ROOT_PORT || type == PCI_EXP_TYPE_DOWNSTREAM)
     printf(" ARIFwd%c\n", FLAG(l, PCI_EXP_DEV2_ARI));
   else
     printf("\n");
 
   w = get_conf_word(d, where + PCI_EXP_DEVCTL2);
-  printf("\t\tDevCtl2: Completion Timeout: %s, TimeoutDis%c",
+  printf("\t\tDevCtl2: Completion Timeout: %s, TimeoutDis%c, LTR%c, OBFF %s",
 	cap_express_dev2_timeout_value(PCI_EXP_DEV2_TIMEOUT_VALUE(w)),
-	FLAG(w, PCI_EXP_DEV2_TIMEOUT_DIS));
+	FLAG(w, PCI_EXP_DEV2_TIMEOUT_DIS),
+	FLAG(w, PCI_EXP_DEV2_LTR),
+	cap_express_devctl2_obff(PCI_EXP_DEV2_OBFF(w)));
   if (type == PCI_EXP_TYPE_ROOT_PORT || type == PCI_EXP_TYPE_DOWNSTREAM)
     printf(" ARIFwd%c\n", FLAG(w, PCI_EXP_DEV2_ARI));
   else
@@ -949,6 +996,8 @@ static const char *cap_express_link2_speed(int type)
 	return "2.5GT/s";
       case 2:
 	return "5GT/s";
+      case 3:
+	return "8GT/s";
       default:
 	return "Unknown";
     }
@@ -985,26 +1034,38 @@ static const char *cap_express_link2_transmargin(int type)
     }
 }
 
-static void cap_express_link2(struct device *d, int where, int type UNUSED)
+static void cap_express_link2(struct device *d, int where, int type)
 {
   u16 w;
 
-  w = get_conf_word(d, where + PCI_EXP_LNKCTL2);
-  printf("\t\tLnkCtl2: Target Link Speed: %s, EnterCompliance%c SpeedDis%c, Selectable De-emphasis: %s\n"
-	"\t\t\t Transmit Margin: %s, EnterModifiedCompliance%c ComplianceSOS%c\n"
-	"\t\t\t Compliance De-emphasis: %s\n",
+  if (!((type == PCI_EXP_TYPE_ENDPOINT || type == PCI_EXP_TYPE_LEG_END) &&
+	(d->dev->dev != 0 || d->dev->func != 0))) {
+    w = get_conf_word(d, where + PCI_EXP_LNKCTL2);
+    printf("\t\tLnkCtl2: Target Link Speed: %s, EnterCompliance%c SpeedDis%c",
 	cap_express_link2_speed(PCI_EXP_LNKCTL2_SPEED(w)),
 	FLAG(w, PCI_EXP_LNKCTL2_CMPLNC),
-	FLAG(w, PCI_EXP_LNKCTL2_SPEED_DIS),
-	cap_express_link2_deemphasis(PCI_EXP_LNKCTL2_DEEMPHASIS(w)),
+	FLAG(w, PCI_EXP_LNKCTL2_SPEED_DIS));
+    if (type == PCI_EXP_TYPE_DOWNSTREAM)
+      printf(", Selectable De-emphasis: %s",
+	cap_express_link2_deemphasis(PCI_EXP_LNKCTL2_DEEMPHASIS(w)));
+    printf("\n"
+	"\t\t\t Transmit Margin: %s, EnterModifiedCompliance%c ComplianceSOS%c\n"
+	"\t\t\t Compliance De-emphasis: %s\n",
 	cap_express_link2_transmargin(PCI_EXP_LNKCTL2_MARGIN(w)),
 	FLAG(w, PCI_EXP_LNKCTL2_MOD_CMPLNC),
 	FLAG(w, PCI_EXP_LNKCTL2_CMPLNC_SOS),
 	cap_express_link2_deemphasis(PCI_EXP_LNKCTL2_COM_DEEMPHASIS(w)));
+  }
 
   w = get_conf_word(d, where + PCI_EXP_LNKSTA2);
-  printf("\t\tLnkSta2: Current De-emphasis Level: %s\n",
-	cap_express_link2_deemphasis(PCI_EXP_LINKSTA2_DEEMPHASIS(w)));
+  printf("\t\tLnkSta2: Current De-emphasis Level: %s, EqualizationComplete%c, EqualizationPhase1%c\n"
+	"\t\t\t EqualizationPhase2%c, EqualizationPhase3%c, LinkEqualizationRequest%c\n",
+	cap_express_link2_deemphasis(PCI_EXP_LINKSTA2_DEEMPHASIS(w)),
+	FLAG(w, PCI_EXP_LINKSTA2_EQU_COMP),
+	FLAG(w, PCI_EXP_LINKSTA2_EQU_PHASE1),
+	FLAG(w, PCI_EXP_LINKSTA2_EQU_PHASE2),
+	FLAG(w, PCI_EXP_LINKSTA2_EQU_PHASE3),
+	FLAG(w, PCI_EXP_LINKSTA2_EQU_REQ));
 }
 
 static void cap_express_slot2(struct device *d UNUSED, int where UNUSED)
@@ -1018,6 +1079,7 @@ cap_express(struct device *d, int where, int cap)
   int type = (cap & PCI_EXP_FLAGS_TYPE) >> 4;
   int size;
   int slot = 0;
+  int link = 1;
 
   printf("Express ");
   if (verbose >= 2)
@@ -1042,15 +1104,17 @@ cap_express(struct device *d, int where, int cap)
       printf("Downstream Port (Slot%c)", FLAG(cap, PCI_EXP_FLAGS_SLOT));
       break;
     case PCI_EXP_TYPE_PCI_BRIDGE:
-      printf("PCI/PCI-X Bridge");
+      printf("PCI-Express to PCI/PCI-X Bridge");
       break;
     case PCI_EXP_TYPE_PCIE_BRIDGE:
       printf("PCI/PCI-X to PCI-Express Bridge");
       break;
     case PCI_EXP_TYPE_ROOT_INT_EP:
+      link = 0;
       printf("Root Complex Integrated Endpoint");
       break;
     case PCI_EXP_TYPE_ROOT_EC:
+      link = 0;
       printf("Root Complex Event Collector");
       break;
     default:
@@ -1069,7 +1133,8 @@ cap_express(struct device *d, int where, int cap)
     return;
 
   cap_express_dev(d, where, type);
-  cap_express_link(d, where, type);
+  if (link)
+    cap_express_link(d, where, type);
   if (slot)
     cap_express_slot(d, where);
   if (type == PCI_EXP_TYPE_ROOT_PORT)
@@ -1085,7 +1150,8 @@ cap_express(struct device *d, int where, int cap)
     return;
 
   cap_express_dev2(d, where, type);
-  cap_express_link2(d, where, type);
+  if (link)
+    cap_express_link2(d, where, type);
   if (slot)
     cap_express_slot2(d, where);
 }
@@ -1188,13 +1254,13 @@ cap_sata_hba(struct device *d, int where, int cap)
 }
 
 void
-show_caps(struct device *d)
+show_caps(struct device *d, int where)
 {
   int can_have_ext_caps = 0;
 
   if (get_conf_word(d, PCI_STATUS) & PCI_STATUS_CAP_LIST)
     {
-      int where = get_conf_byte(d, PCI_CAPABILITY_LIST) & ~3;
+      where = get_conf_byte(d, where) & ~3;
       byte been_there[256];
       memset(been_there, 0, 256);
       while (where)

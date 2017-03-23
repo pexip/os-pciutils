@@ -64,7 +64,7 @@ void cap_vpd(struct device *d);
 
 /* ls-caps.c */
 
-void show_caps(struct device *d);
+void show_caps(struct device *d, int where);
 
 /* ls-ecaps.c */
 
@@ -74,6 +74,7 @@ void show_ext_caps(struct device *d);
 
 void show_kernel_machine(struct device *d UNUSED);
 void show_kernel(struct device *d UNUSED);
+void show_kernel_cleanup(void);
 
 /* ls-tree.c */
 
