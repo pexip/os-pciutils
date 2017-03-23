@@ -1,3 +1,57 @@
+2013-11-10  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.2.1.
+
+	* CardBus bridge capabilities are displayed.
+
+	* PCIe L1 PM substates are decoded.
+
+	* Various bugs were fixed in decoding of PCIe capabilities.
+
+	* The sysfs back-end does not spit out unnecessary warnings when
+	  empty slots report only a partial device address. This actually
+	  happens on IBM pSeries.
+
+	* Updated pci.ids to the today's snapshot of the database.
+
+2013-04-19  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.2.0.
+
+	* On newer Linux systems, we use libkmod to look up kernel modules
+	  (modules.pcimap no longer exists.) To facilitate this, libpci
+	  is able to look up module aliases in sysfs.
+
+	* Various minor bug fixes.
+
+	* Updated pci.ids to the today's snapshot of the database.
+
+2012-06-25  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.1.10.
+
+	* Decoding of LTR/OBFF in PCIe capabilities.
+
+	* Various minor bug fixes.
+
+	* Updated pci.ids to the today's snapshot of the database.
+
+2012-01-14  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.1.9.
+
+	* Updated README.
+
+	* Wherever we mention the PCI ID database, we now refer to
+	  http://pci-ids.ucw.cz/ and the sf.net site is mentioned only
+	  as a mirror. This includes update-pciids.
+
+	* Decode PCIe Gen 3 speeds and link status fields.
+
+	* Various minor bug fixes.
+
+	* Updated pci.ids to the today's snapshot of the database.
+
 2011-10-02  Martin Mares <mj@ucw.cz>
 
 	* Released as 3.1.8.

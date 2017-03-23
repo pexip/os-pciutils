@@ -1,15 +1,17 @@
---- a/Makefile	2011-10-02 22:28:55.000000000 +1100
-+++ b/Makefile	2011-11-28 19:40:57.000000000 +1100
+Index: pciutils-3.2.1/Makefile
+===================================================================
+--- pciutils-3.2.1.orig/Makefile
++++ pciutils-3.2.1/Makefile
 @@ -1,7 +1,7 @@
  # Makefile for The PCI Utilities
- # (c) 1998--2011 Martin Mares <mj@ucw.cz>
+ # (c) 1998--2013 Martin Mares <mj@ucw.cz>
  
 -OPT=-O2
-+OPT=-O2 -g
++OPT+=-O2 -g
  CFLAGS=$(OPT) -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes
  
- VERSION=3.1.8
-@@ -52,7 +52,9 @@ PCIINC_INS=lib/config.h lib/header.h lib
+ VERSION=3.2.1
+@@ -56,7 +56,9 @@ PCIINC_INS=lib/config.h lib/header.h lib
  
  export
  
@@ -20,7 +22,7 @@
  
  lib/$(PCILIB): $(PCIINC) force
  	$(MAKE) -C lib all
-@@ -63,7 +65,9 @@ lib/config.h lib/config.mk:
+@@ -67,7 +69,9 @@ lib/config.h lib/config.mk:
  	cd lib && ./configure
  
  lspci: lspci.o ls-vpd.o ls-caps.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o common.o lib/$(PCILIB)
@@ -30,20 +32,23 @@
  
  LSPCIINC=lspci.h pciutils.h $(PCIINC)
  lspci.o: lspci.c $(LSPCIINC)
-@@ -75,10 +79,11 @@ ls-tree.o: ls-tree.c $(LSPCIINC)
+@@ -79,6 +83,7 @@ ls-tree.o: ls-tree.c $(LSPCIINC)
  ls-map.o: ls-map.c $(LSPCIINC)
  
  setpci.o: setpci.c pciutils.h $(PCIINC)
 +pcimodules.o: pcimodules.c pciutils.h $(PCIINC)
  common.o: common.c pciutils.h $(PCIINC)
  
+ lspci: LDLIBS+=$(LIBKMOD_LIBS)
+@@ -86,6 +91,7 @@ ls-kernel.o: CFLAGS+=$(LIBKMOD_CFLAGS)
+ 
  update-pciids: update-pciids.sh
--	sed <$< >$@ "s@^DEST=.*@DEST=$(IDSDIR)/$(PCI_IDS)@;s@^PCI_COMPRESSED_IDS=.*@PCI_COMPRESSED_IDS=$(PCI_COMPRESSED_IDS)@"
+ 	sed <$< >$@ "s@^DEST=.*@DEST=$(IDSDIR)/$(PCI_IDS)@;s@^PCI_COMPRESSED_IDS=.*@PCI_COMPRESSED_IDS=$(PCI_COMPRESSED_IDS)@"
 +	sed <$< >$@ "s@^FILE=.*@FILE=$(IDSDIR)/pci.ids@"
  	chmod +x $@
  
  # The example of use of libpci
-@@ -88,12 +93,16 @@ example.o: example.c $(PCIINC)
+@@ -95,12 +101,16 @@ example.o: example.c $(PCIINC)
  %: %.o
  	$(CC) $(LDFLAGS) $(TARGET_ARCH) $^ $(LDLIBS) -o $@
  
@@ -60,7 +65,7 @@
  	rm -rf maint/dist
  
  distclean: clean
-@@ -101,10 +110,11 @@ distclean: clean
+@@ -108,10 +118,11 @@ distclean: clean
  install: all
  # -c is ignored on Linux, but required on FreeBSD
  	$(DIRINSTALL) -m 755 $(DESTDIR)$(SBINDIR) $(DESTDIR)$(IDSDIR) $(DESTDIR)$(MANDIR)/man8 $(DESTDIR)$(MANDIR)/man7
@@ -73,8 +78,8 @@
 +	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 $(pcimod8-1) $(DESTDIR)$(MANDIR)/man8
  	$(INSTALL) -c -m 644 pcilib.7 $(DESTDIR)$(MANDIR)/man7
  ifeq ($(SHARED),yes)
- 	$(DIRINSTALL) -m 755 $(DESTDIR)$(LIBDIR)
-@@ -123,8 +133,10 @@ endif
+ 	ln -sf $(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so$(ABI_VERSION)
+@@ -135,8 +146,10 @@ endif
  
  uninstall: all
  	rm -f $(DESTDIR)$(SBINDIR)/lspci $(DESTDIR)$(SBINDIR)/setpci $(DESTDIR)$(SBINDIR)/update-pciids
@@ -85,8 +90,10 @@
  	rm -f $(DESTDIR)$(MANDIR)/man7/pcilib.7
  ifeq ($(SHARED),yes)
  	rm -f $(DESTDIR)$(LIBDIR)/$(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so$(ABI_VERSION)
---- a/lib/Makefile	2011-01-08 08:04:28.000000000 +1100
-+++ b/lib/Makefile	2011-11-28 19:40:57.000000000 +1100
+Index: pciutils-3.2.1/lib/Makefile
+===================================================================
+--- pciutils-3.2.1.orig/lib/Makefile
++++ pciutils-3.2.1/lib/Makefile
 @@ -42,18 +42,20 @@ ifdef PCI_HAVE_PM_NBSD_LIBPCI
  OBJS += nbsd-libpci
  endif
@@ -113,4 +120,3 @@
  
  $(PCILIBPC): libpci.pc.in
  	sed <$< >$@ -e 's,@PREFIX@,$(PREFIX),' \
-

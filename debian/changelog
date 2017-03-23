@@ -1,15 +1,143 @@
-pciutils (1:3.1.8-2ubuntu6pexip1) pexip; urgency=low
+pciutils (1:3.2.1-3pexip1) pexip; urgency=low
 
-  * Prepare Pexip packaging
+  * Migrate to Jessie
 
- -- John-Mark Bell <jmb@pexip.com>  Wed, 25 Dec 2013 01:29:18 +0000
+ -- John-Mark Bell <jmb@pexip.com>  Thu, 23 Mar 2017 16:52:52 +0000
 
-pciutils (1:3.1.8-2ubuntu6) precise; urgency=low
+pciutils (1:3.2.1-3) unstable; urgency=medium
 
-  * Downloaded daily snapshot dated 2013-07-26 03:15:02
-    -LP: #1207387 
+  * Update pci.ids with version 2014.09.09.
+  * Use default compression for binary packages.
+  * Refresh patches.
 
- -- Tim Gardner <tim.gardner@canonical.com>  Thu, 01 Aug 2013 09:36:28 -0600
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Tue, 09 Sep 2014 03:44:50 +0100
+
+pciutils (1:3.2.1-2) unstable; urgency=medium
+
+  * Update pci.ids with version 2014.02.14 
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Sun, 16 Feb 2014 13:13:27 +1100
+
+pciutils (1:3.2.1-1) unstable; urgency=medium
+
+  * New upstream version 3.2.1
+    - CardBus bridge capabilities are displayed.
+    - PCIe L1 PM substates are decoded.
+    - Various bugs were fixed in decoding of PCIe capabilities.
+    - The sysfs back-end does not spit out unnecessary warnings when
+      slots report only a partial device address. This actually
+      on IBM pSeries.
+  * Update 01-Makefile.patch
+  * Update pci.ids with version 2013.12.27
+  * Debian policy version is 3.9.5
+  * Suggests package lynx-cur
+    Closes: #710580
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Sat, 28 Dec 2013 10:47:09 +1100
+
+pciutils (1:3.2.0-3) unstable; urgency=low
+
+  * Update pci.ids with version 2013.07.01
+  * Update package description
+    Patch by Justin B Rye
+    Closes: #708363
+  * libpci.pc: add -lresolv and -lz for static linking
+    Add 07-697383-libpci.pc.in.patch
+    Closes: #697383
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Tue, 02 Jul 2013 11:17:29 +1000
+
+pciutils (1:3.2.0-2) unstable; urgency=low
+
+  * Update pci.ids with version 2013.06.06
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Thu, 06 Jun 2013 13:07:10 +1000
+
+pciutils (1:3.2.0-1) unstable; urgency=low
+
+  * New upstream version 3.2.0
+    - 3.2.0
+      On newer Linux systems, we use libkmod to look up kernel modules
+      (modules.pcimap no longer exists.) To facilitate this, libpci
+      is able to look up module aliases in sysfs.
+    - 3.1.10
+      Decoding of LTR/OBFF in PCIe capabilities.
+  * Debian policy version is 3.9.4
+  * Update pci.ids with version 2013.05.22
+  * update-pciids is in /usr/sbin
+    Closes: #708361
+  * Update
+    01-Makefile.patch
+    04-update-pciids.sh.patch
+  * Fix various issues in setpci.man update-pciids.man
+    Patches by Bjarni Ingi Gislason
+    Add 05-674708-setpci.man.patch
+    Add 06-675087-update-pciids.man.patch
+    Closes: #674708, #675087
+
+  [ Colin Watson ]
+  * Set CROSS_COMPILE rather than CC when cross-building, so that we use the
+    correct ar and ranlib too.
+    Closes: #694903
+  * Tell the upstream build system not to strip binaries when installing
+    them; dh_strip will handle that, using the correct strip program and
+    honouring DEB_BUILD_OPTIONS=nostrip.
+    Closes: #694903
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Thu, 23 May 2013 11:57:46 +1000
+
+pciutils (1:3.1.9-6) unstable; urgency=low
+
+  * Update pci.ids with version 2012.11.19
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Tue, 20 Nov 2012 09:43:33 +1100
+
+pciutils (1:3.1.9-5) unstable; urgency=medium
+
+  * Update pci.ids with version 2012.06.25
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Sat, 30 Jun 2012 13:33:01 +1000
+
+pciutils (1:3.1.9-4) unstable; urgency=low
+
+  * Enable hardened build flags
+  * DH compatibility level is 9
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Thu, 14 Jun 2012 11:49:37 +1000
+
+pciutils (1:3.1.9-3) unstable; urgency=medium
+
+  * Update pci.ids with version 2012.05.07
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Tue, 08 May 2012 13:05:10 +1000
+
+pciutils (1:3.1.9-2) unstable; urgency=medium
+
+  * Update pci.ids with version 2012.04.09 
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Wed, 11 Apr 2012 20:04:52 +1000
+
+pciutils (1:3.1.9-1) unstable; urgency=low
+
+  * New upstream version 3.1.9
+    - Decode PCIe Gen 3 speeds and link status fields
+    - Fix "non-informative text for VIA VT6415"
+      Closes: 589674
+    - Fix "libpci3: lspci -i x crashes"
+      Closes: 624202
+  * Merge 1:3.1.8-2ubuntu5
+    - Remove Multi-Arch: same from libpci-dev; /usr/include/pci/config.h is
+      not identical across architectures
+      Closes: 658766
+    - Add libpci3-udeb, for future use by biosdevname-udeb
+    - Don't put -dev files in /lib; these still belong under /usr/lib
+    - Set single-debian-patch in debian/source/options, so that future pci.ids
+      updates don't result in umpteen debian-changes-$version patches
+  * Update the pciutils Uploaders list
+    Closes: 572503
+  * Update pci.ids with version 2012.02.27
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Fri, 30 Mar 2012 17:02:27 +1100
 
 pciutils (1:3.1.8-2ubuntu5) precise; urgency=low
 

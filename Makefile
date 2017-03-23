@@ -1,11 +1,11 @@
 # Makefile for The PCI Utilities
-# (c) 1998--2011 Martin Mares <mj@ucw.cz>
+# (c) 1998--2013 Martin Mares <mj@ucw.cz>
 
 OPT=-O2
 CFLAGS=$(OPT) -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes
 
-VERSION=3.1.8
-DATE=2011-10-02
+VERSION=3.2.1
+DATE=2013-11-10
 
 # Host OS and release (override if you are cross-compiling)
 HOST=
@@ -21,7 +21,11 @@ DNS=
 # Build libpci as a shared library (yes/no; or local for testing; requires GCC)
 SHARED=no
 
+# Use libkmod to resolve kernel modules on Linux (yes/no, default: detect)
+LIBKMOD=
+
 # ABI version suffix in the name of the shared library
+# (as we use proper symbol versioning, this seldom needs changing)
 ABI_VERSION=.3
 
 # Installation directories
@@ -77,6 +81,9 @@ ls-map.o: ls-map.c $(LSPCIINC)
 setpci.o: setpci.c pciutils.h $(PCIINC)
 common.o: common.c pciutils.h $(PCIINC)
 
+lspci: LDLIBS+=$(LIBKMOD_LIBS)
+ls-kernel.o: CFLAGS+=$(LIBKMOD_CFLAGS)
+
 update-pciids: update-pciids.sh
 	sed <$< >$@ "s@^DEST=.*@DEST=$(IDSDIR)/$(PCI_IDS)@;s@^PCI_COMPRESSED_IDS=.*@PCI_COMPRESSED_IDS=$(PCI_COMPRESSED_IDS)@"
 	chmod +x $@
@@ -107,15 +114,20 @@ install: all
 	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL) -c -m 644 pcilib.7 $(DESTDIR)$(MANDIR)/man7
 ifeq ($(SHARED),yes)
-	$(DIRINSTALL) -m 755 $(DESTDIR)$(LIBDIR)
-	$(INSTALL) -c -m 644 lib/$(PCILIB) $(DESTDIR)$(LIBDIR)
 	ln -sf $(PCILIB) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so$(ABI_VERSION)
 endif
 
-install-lib: $(PCIINC_INS) lib/$(PCILIB) lib/$(PCILIBPC)
-	$(DIRINSTALL) -m 755 $(DESTDIR)$(INCDIR)/pci $(DESTDIR)$(LIBDIR) $(DESTDIR)$(PKGCFDIR)
-	$(INSTALL) -c -m 644 $(PCIINC_INS) $(DESTDIR)$(INCDIR)/pci
+ifeq ($(SHARED),yes)
+install: install-pcilib
+endif
+
+install-pcilib: lib/$(PCILIB)
+	$(DIRINSTALL) -m 755 $(DESTDIR)$(LIBDIR)
 	$(INSTALL) -c -m 644 lib/$(PCILIB) $(DESTDIR)$(LIBDIR)
+
+install-lib: $(PCIINC_INS) lib/$(PCILIBPC) install-pcilib
+	$(DIRINSTALL) -m 755 $(DESTDIR)$(INCDIR)/pci $(DESTDIR)$(PKGCFDIR)
+	$(INSTALL) -c -m 644 $(PCIINC_INS) $(DESTDIR)$(INCDIR)/pci
 	$(INSTALL) -c -m 644 lib/$(PCILIBPC) $(DESTDIR)$(PKGCFDIR)
 ifeq ($(SHARED),yes)
 	ln -sf $(LIBNAME).so$(ABI_VERSION) $(DESTDIR)$(LIBDIR)/$(LIBNAME).so

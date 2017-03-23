@@ -372,7 +372,7 @@ show_bases(struct device *d, int cnt)
 	{
 	  pciaddr_t a = pos & PCI_BASE_ADDRESS_IO_MASK;
 	  printf("I/O ports at ");
-	  if (a)
+	  if (a || (cmd & PCI_COMMAND_IO))
 	    printf(PCIADDR_PORT_FMT, a);
 	  else if (flg & PCI_BASE_ADDRESS_IO_MASK)
 	    printf("<ignored>");
@@ -461,7 +461,7 @@ show_htype0(struct device *d)
 {
   show_bases(d, 6);
   show_rom(d, PCI_ROM_ADDRESS);
-  show_caps(d);
+  show_caps(d, PCI_CAPABILITY_LIST);
 }
 
 static void
@@ -567,7 +567,7 @@ show_htype1(struct device *d)
 	FLAG(brc, PCI_BRIDGE_CTL_DISCARD_TIMER_SERR_EN));
     }
 
-  show_caps(d);
+  show_caps(d, PCI_CAPABILITY_LIST);
 }
 
 static void
@@ -590,7 +590,8 @@ show_htype2(struct device *d)
       int p = 8*i;
       u32 base = get_conf_long(d, PCI_CB_MEMORY_BASE_0 + p);
       u32 limit = get_conf_long(d, PCI_CB_MEMORY_LIMIT_0 + p);
-      if (limit > base || verb)
+      limit = limit + 0xfff;
+      if (base <= limit || verb)
 	printf("\tMemory window %d: %08x-%08x%s%s\n", i, base, limit,
 	       (cmd & PCI_COMMAND_MEMORY) ? "" : " [disabled]",
 	       (brc & (PCI_CB_BRIDGE_CTL_PREFETCH_MEM0 << i)) ? " (prefetchable)" : "");
@@ -634,6 +635,7 @@ show_htype2(struct device *d)
   exca = get_conf_word(d, PCI_CB_LEGACY_MODE_BASE);
   if (exca)
     printf("\t16-bit legacy interface ports at %04x\n", exca);
+  show_caps(d, PCI_CB_CAPABILITY_LIST);
 }
 
 static void
@@ -1012,6 +1014,7 @@ main(int argc, char **argv)
       else
 	show();
     }
+  show_kernel_cleanup();
   pci_cleanup(pacc);
 
   return (seen_errors ? 2 : 0);

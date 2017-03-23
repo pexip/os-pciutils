@@ -2,11 +2,10 @@ Source: pciutils
 Section: admin
 Priority: optional
 Maintainer: Pexip AS <packaging@pexip.com>
-XSBC-Pexip-Original-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-XSBC-Original-Maintainer: Anibal Monsalve Salazar <anibal@debian.org>
-XSBC-Pexip-Original-Uploaders: Matthew Wilcox <willy@debian.org>, Matt Taggart <taggart@debian.org>
-Build-Depends: debhelper (>= 8.1.3), zlib1g-dev
-Standards-Version: 3.9.2
+XSBC-Pexip-Original-Maintainer: Anibal Monsalve Salazar <anibal@debian.org>
+XSBC-Pexip-Original-Uploaders: Matt Taggart <taggart@debian.org>
+Build-Depends: dpkg-dev (>= 1.16.1~), debhelper (>= 9), zlib1g-dev
+Standards-Version: 3.9.5
 Homepage: http://atrey.karlin.mff.cuni.cz/~mj/pciutils.shtml
 XS-Pexip-Upstream: http://ftp.debian.org/debian/ jessie
 
@@ -15,7 +14,7 @@ Architecture: any
 Priority: standard
 Depends: ${shlibs:Depends}, ${misc:Depends}, libpci3 (= ${binary:Version})
 Multi-Arch: foreign
-Suggests: bzip2, wget | curl | lynx
+Suggests: bzip2, wget | curl | lynx-cur
 Description: Linux PCI Utilities
  This package contains various utilities for inspecting and setting of
  devices connected to the PCI bus. 
@@ -61,7 +60,7 @@ Description: Linux PCI Utilities (udeb)
  This is a minimal version for use in debian-installer.
 
 Package: libpci3-udeb
-XC-Package-Type: udeb
+Package-Type: udeb
 Section: debian-installer
 Architecture: any
 Priority: optional
