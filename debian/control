@@ -8,7 +8,7 @@ XSBC-Pexip-Original-Uploaders: Matthew Wilcox <willy@debian.org>, Matt Taggart <
 Build-Depends: debhelper (>= 8.1.3), zlib1g-dev
 Standards-Version: 3.9.2
 Homepage: http://atrey.karlin.mff.cuni.cz/~mj/pciutils.shtml
-XS-Pexip-Upstream: http://archive.ubuntu.com/ubuntu/ precise
+XS-Pexip-Upstream: http://ftp.debian.org/debian/ jessie
 
 Package: pciutils
 Architecture: any
