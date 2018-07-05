@@ -44,7 +44,7 @@ if [ -z "$HOST" ] ; then
 fi
 [ -n "$RELEASE" ] && rel="${RELEASE}"
 # CAVEAT: tr on Solaris is a bit weird and the extra [] is otherwise harmless.
-host=`echo $HOST | sed -e 's/^\([^-]*\)-\([^-]*\)-\([^-]*\)-\([^-]*\)$/\1-\3/' -e 's/^\([^-]*\)-\([^-]*\)$/\1--\2/' | tr '[A-Z]' '[a-z]'`
+host=`echo $HOST | sed -e 's/^\([^-]*\)-\([^-]*\)-\([^-]*\)-\([^-]*\)$/\1-\3/' -e 's/^\([^-]*\)-\([^-]*\)-\([^-]*\)$/\1-\2/' -e 's/^\([^-]*\)-\([^-]*\)$/\1--\2/' | tr '[A-Z]' '[a-z]'`
 cpu=`echo $host | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\1/'`
 sys=`echo $host | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\3/'`
 echo " $host $rel $cpu $sys"
@@ -58,6 +58,7 @@ echo >$m 'WITH_LIBS='
 
 echo_n "Looking for access methods..."
 LIBRESOLV=-lresolv
+LIBEXT=so
 
 case $sys in
 	linux*)
@@ -100,6 +101,15 @@ case $sys in
 		echo >>$c '#define PCI_PATH_OBSD_DEVICE "/dev/pci"'
 		LIBRESOLV=
 		;;
+
+        darwin*)
+	        echo_n " darwin"
+		echo >>$c '#define PCI_HAVE_PM_DARWIN_DEVICE'
+		echo >>$m 'WITH_LIBS+=-lresolv -framework CoreFoundation -framework IOKit'
+		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
+		LIBRESOLV=
+		LIBEXT=dylib
+		;;
 	aix)
 		echo_n " aix-device"
 		echo >>$c '#define PCI_HAVE_PM_AIX_DEVICE'
@@ -138,6 +148,7 @@ case $sys in
 		;;
 esac
 
+echo >>$m "LIBEXT="$LIBEXT
 echo >>$c '#define PCI_HAVE_PM_DUMP'
 echo " dump"
 
@@ -211,6 +222,23 @@ if [ "$sys" = linux ] ; then
 		echo >>$m "LIBKMOD_CFLAGS=$($PKG_CONFIG --cflags libkmod)"
 		echo >>$m "LIBKMOD_LIBS=$($PKG_CONFIG --libs libkmod)"
 	fi
+
+	echo_n "Checking for udev hwdb support... "
+	if [ "$HWDB" = yes -o "$HWDB" = no ] ; then
+		echo "$HWDB (set manually)"
+	else
+		if `which pkg-config >/dev/null && pkg-config --atleast-version=196 libudev` ; then
+			HWDB=yes
+		else
+			HWDB=no
+		fi
+		echo "$HWDB (auto-detected)"
+	fi
+	if [ "$HWDB" = yes ] ; then
+		echo >>$c '#define PCI_HAVE_HWDB'
+		echo >>$m 'LIBUDEV=-ludev'
+		echo >>$m 'WITH_LIBS+=$(LIBUDEV)'
+	fi
 fi
 
 echo "Checking whether to build a shared library... $SHARED (set manually)"
@@ -219,13 +247,17 @@ if [ "$SHARED" = no ] ; then
 	echo >>$m 'LDLIBS=$(WITH_LIBS)'
 	echo >>$m 'LIB_LDLIBS='
 else
-	echo >>$m 'PCILIB=$(LIBNAME).so.$(VERSION)'
+	if [ "$LIBEXT" = so ]; then
+		echo >>$m 'PCILIB=$(LIBNAME).$(LIBEXT).$(VERSION)'
+	else
+		echo >>$m 'PCILIB=$(LIBNAME).$(VERSION).$(LIBEXT)'
+	fi
 	# We link the dependencies _to_ the library, so we do not need explicit deps in .pc
 	echo >>$m 'LDLIBS='
 	echo >>$m 'LIB_LDLIBS=$(WITH_LIBS)'
 	echo >>$c '#define PCI_SHARED_LIB'
-	if [ "$SHARED" = yes ] ; then
-		echo >>$m 'SONAME=-Wl,-soname,$(LIBNAME).so$(ABI_VERSION)'
+	if [ "$SHARED" = yes -a "$LIBEXT" = so ]; then
+		echo >>$m 'SONAME=-Wl,-soname,$(LIBNAME).$(LIBEXT)$(ABI_VERSION)'
 	fi
 fi
 echo >>$m 'PCILIBPC=$(LIBNAME).pc'

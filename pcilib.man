@@ -1,5 +1,4 @@
 .TH pcilib 7 "@TODAY@" "@VERSION@" "The PCI Utilities"
-.IX pcilib
 .SH NAME
 pcilib \- a library for accessing PCI devices
 
@@ -63,6 +62,10 @@ device on OpenBSD. Requires root privileges.
 Read the contents of configuration registers from a file specified in the
 .B dump.name
 parameter. The format corresponds to the output of \fIlspci\fP \fB-x\fP.
+.TP
+.B darwin
+Access method used on Mac OS X / Darwin. Must be run as root and the system
+must have been booted with debug=0x144.
 
 .SH PARAMETERS
 
@@ -99,6 +102,11 @@ DNS domain containing the ID database.
 .TP
 .B net.cache_name
 Name of the file used for caching of resolved ID's.
+
+.SS Parameters for resolving of ID's via UDEV's HWDB
+.TP
+.B hwdb.disable
+Disable use of HWDB if set to a non-zero value.
 
 .SH SEE ALSO
 

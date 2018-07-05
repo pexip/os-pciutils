@@ -1,79 +1,97 @@
-01:00.0 Class 0280: Device 8086:095a (rev 61)
-	Subsystem: Device 8086:5010
-	Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+0002:01:00.0 Ethernet controller: Cavium, Inc. THUNDERX Network Interface Controller (rev 08)
+	Subsystem: Cavium, Inc. Device a11e
+	Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx-
 	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
-	Latency: 0, Cache Line Size: 64 bytes
-	Interrupt: pin A routed to IRQ 275
-	Region 0: Memory at d1000000 (64-bit, non-prefetchable) [size=8K]
-	Capabilities: [c8] Power Management version 3
-		Flags: PMEClk- DSI+ D1- D2- AuxCurrent=0mA PME(D0+,D1-,D2-,D3hot+,D3cold+)
-		Status: D0 NoSoftRst- PME-Enable- DSel=0 DScale=0 PME-
-	Capabilities: [d0] MSI: Enable+ Count=1/1 Maskable- 64bit+
-		Address: 00000000fee0f00c  Data: 4162
+	Latency: 0
+	Region 0: [virtual] Memory at 843000000000 (32-bit, non-prefetchable) [size=1G]
+	Region 4: [virtual] Memory at 843060000000 (32-bit, non-prefetchable) [size=1M]
 	Capabilities: [40] Express (v2) Endpoint, MSI 00
-		DevCap:	MaxPayload 128 bytes, PhantFunc 0, Latency L0s <512ns, L1 unlimited
-			ExtTag- AttnBtn- AttnInd- PwrInd- RBE+ FLReset+ SlotPowerLimit 0.000W
+		DevCap:	MaxPayload 128 bytes, PhantFunc 0, Latency L0s <64ns, L1 <1us
+			ExtTag- AttnBtn- AttnInd- PwrInd- RBE- FLReset- SlotPowerLimit 0.000W
 		DevCtl:	Report errors: Correctable- Non-Fatal- Fatal- Unsupported-
-			RlxdOrd+ ExtTag- PhantFunc- AuxPwr+ NoSnoop+ FLReset-
+			RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
 			MaxPayload 128 bytes, MaxReadReq 128 bytes
-		DevSta:	CorrErr- UncorrErr- FatalErr- UnsuppReq- AuxPwr+ TransPend-
-		LnkCap:	Port #0, Speed 2.5GT/s, Width x1, ASPM L1, Exit Latency L0s <4us, L1 <32us
-			ClockPM+ Surprise- LLActRep- BwNot- ASPMOptComp+
-		LnkCtl:	ASPM L1 Enabled; RCB 64 bytes Disabled- CommClk+
-			ExtSynch- ClockPM+ AutWidDis- BWInt- AutBWInt-
-		LnkSta:	Speed 2.5GT/s, Width x1, TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
-		DevCap2: Completion Timeout: Range B, TimeoutDis+, LTR+, OBFF Via WAKE#
-		DevCtl2: Completion Timeout: 16ms to 55ms, TimeoutDis-, LTR+, OBFF Disabled
+		DevSta:	CorrErr- UncorrErr- FatalErr- UnsuppReq- AuxPwr- TransPend-
+		LnkCap:	Port #0, Speed unknown, Width x0, ASPM not supported, Exit Latency L0s <64ns, L1 <1us
+			ClockPM- Surprise- LLActRep- BwNot- ASPMOptComp-
+		LnkCtl:	ASPM Disabled; RCB 64 bytes Disabled- CommClk-
+			ExtSynch- ClockPM- AutWidDis- BWInt- AutBWInt-
+		LnkSta:	Speed unknown, Width x0, TrErr- Train- SlotClk- DLActive- BWMgmt- ABWMgmt-
+		DevCap2: Completion Timeout: Not Supported, TimeoutDis-, LTR-, OBFF Not Supported
+		DevCtl2: Completion Timeout: 50us to 50ms, TimeoutDis-, LTR-, OBFF Disabled
 		LnkCtl2: Target Link Speed: 2.5GT/s, EnterCompliance- SpeedDis-
 			 Transmit Margin: Normal Operating Range, EnterModifiedCompliance- ComplianceSOS-
 			 Compliance De-emphasis: -6dB
-		LnkSta2: Current De-emphasis Level: -3.5dB, EqualizationComplete-, EqualizationPhase1-
+		LnkSta2: Current De-emphasis Level: -6dB, EqualizationComplete-, EqualizationPhase1-
 			 EqualizationPhase2-, EqualizationPhase3-, LinkEqualizationRequest-
-	Capabilities: [100 v1] Advanced Error Reporting
-		UESta:	DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
-		UEMsk:	DLP- SDES- TLP- FCP- CmpltTO- CmpltAbrt- UnxCmplt- RxOF- MalfTLP- ECRC- UnsupReq- ACSViol-
-		UESvrt:	DLP+ SDES+ TLP- FCP+ CmpltTO- CmpltAbrt- UnxCmplt- RxOF+ MalfTLP+ ECRC- UnsupReq- ACSViol-
-		CESta:	RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr-
-		CEMsk:	RxErr- BadTLP- BadDLLP- Rollover- Timeout- NonFatalErr+
-		AERCap:	First Error Pointer: 00, GenCap- CGenEn- ChkCap- ChkEn-
-	Capabilities: [140 v1] Device Serial Number 18-5e-0f-ff-ff-61-9b-49
-	Capabilities: [14c v1] Latency Tolerance Reporting
-		Max snoop latency: 3145728ns
-		Max no snoop latency: 3145728ns
-	Capabilities: [154 v1] L1 PM Substates
-		L1SubCap: PCI-PM_L1.2+ PCI-PM_L1.1+ ASPM_L1.2+ ASPM_L1.1+ L1_PM_Substates+
-			  PortCommonModeRestoreTime=30us PortTPowerOnTime=60us
-		L1SubCtl1: PCI-PM_L1.2+ PCI-PM_L1.1+ ASPM_L1.2+ ASPM_L1.1+
-			   T_CommonMode=0us LTR1.2_Threshold=163840ns
-		L1SubCtl2: T_PwrOn=60us
-	Kernel driver in use: iwlwifi
-00: 86 80 5a 09 06 04 10 00 61 00 80 02 10 00 00 00
-10: 04 00 00 d1 00 00 00 00 00 00 00 00 00 00 00 00
-20: 00 00 00 00 00 00 00 00 00 00 00 00 86 80 10 50
-30: 00 00 00 00 c8 00 00 00 00 00 00 00 00 01 00 00
-40: 10 00 02 00 c0 8e 00 10 10 0c 10 00 11 e8 46 00
-50: 42 01 11 10 00 00 00 00 00 00 00 00 00 00 00 00
-60: 00 00 00 00 12 08 08 00 05 04 00 00 00 00 00 00
-70: 01 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00
-80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-c0: 00 00 00 00 00 00 00 00 01 d0 23 c8 00 00 00 0d
-d0: 05 40 81 00 0c f0 e0 fe 00 00 00 00 62 41 00 00
-e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+	Capabilities: [80] MSI-X: Enable+ Count=10 Masked-
+		Vector table: BAR=4 offset=00000000
+		PBA: BAR=4 offset=000f0000
+	Capabilities: [98] Enhanced Allocation (EA): NumEntries=4
+		Entry 0: Enable+ Writable- EntrySize=4
+			 BAR Equivalent Indicator: BAR 0
+			 PrimaryProperties: memory space, non-prefetchable
+			 SecondaryProperties: entry unavailable for use, PrimaryProperties should be used
+			 Base: 843000000000
+			 MaxOffset: 03fffffff
+		Entry 1: Enable+ Writable- EntrySize=4
+			 BAR Equivalent Indicator: BAR 4
+			 PrimaryProperties: memory space, non-prefetchable
+			 SecondaryProperties: entry unavailable for use, PrimaryProperties should be used
+			 Base: 843060000000
+			 MaxOffset: 0000fffff
+		Entry 2: Enable+ Writable- EntrySize=4
+			 BAR Equivalent Indicator: VF-BAR 0
+			 PrimaryProperties: VF memory space, non-prefetchable
+			 SecondaryProperties: entry unavailable for use, PrimaryProperties should be used
+			 Base: 8430a0000000
+			 MaxOffset: 0001fffff
+		Entry 3: Enable+ Writable- EntrySize=4
+			 BAR Equivalent Indicator: VF-BAR 4
+			 PrimaryProperties: VF memory space, non-prefetchable
+			 SecondaryProperties: entry unavailable for use, PrimaryProperties should be used
+			 Base: 8430e0000000
+			 MaxOffset: 0001fffff
+	Capabilities: [100 v1] Alternative Routing-ID Interpretation (ARI)
+		ARICap:	MFVC- ACS-, Next Function: 0
+		ARICtl:	MFVC- ACS-, Function Group: 0
+	Capabilities: [108 v1] Vendor Specific Information: ID=00a0 Rev=1 Len=040 <?>
+	Capabilities: [180 v1] Single Root I/O Virtualization (SR-IOV)
+		IOVCap:	Migration-, Interrupt Message Number: 000
+		IOVCtl:	Enable+ Migration- Interrupt- MSE+ ARIHierarchy+
+		IOVSta:	Migration-
+		Initial VFs: 128, Total VFs: 128, Number of VFs: 128, Function Dependency Link: 00
+		VF offset: 1, stride: 1, Device ID: a034
+		Supported Page Size: 00000553, System Page Size: 00000100
+		VF Migration: offset: 00000000, BIR: 0
+	Kernel driver in use: thunder-nic
+00: 7d 17 1e a0 06 00 10 00 08 00 00 02 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 7d 17 1e a1
+30: 00 00 00 00 40 00 00 00 00 00 00 00 00 00 00 00
+40: 10 80 02 00 00 00 00 00 00 00 00 00 00 00 00 00
+50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+80: 11 98 09 80 04 00 00 00 04 00 0f 00 00 00 00 00
+90: 00 00 00 00 00 00 00 00 14 00 04 00 04 00 ff 80
+a0: 02 00 00 00 fe ff ff 3f 30 84 00 00 00 00 00 00
+b0: 44 00 ff 80 02 00 00 60 fe ff 0f 00 30 84 00 00
+c0: 00 00 00 00 94 04 ff 80 02 00 00 a0 fe ff 1f 00
+d0: 30 84 00 00 00 00 00 00 d4 04 ff 80 02 00 00 e0
+e0: fe ff 1f 00 30 84 00 00 00 00 00 00 00 00 00 00
 f0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-100: 01 00 01 14 00 00 00 00 00 00 00 00 31 20 46 00
-110: 00 00 00 00 00 20 00 00 00 00 00 00 00 00 00 00
-120: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-130: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-140: 03 00 c1 14 49 9b 61 ff ff 0f 5e 18 18 00 41 15
-150: 03 10 03 10 1e 00 01 00 1f 1e f0 00 0f 00 a0 40
-160: f0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+100: 0e 00 81 10 00 00 00 00 0b 00 01 18 a0 00 01 04
+110: 00 00 00 00 00 00 00 00 00 00 00 00 30 84 00 00
+120: 00 00 00 00 00 00 00 00 00 00 00 60 30 84 00 00
+130: 00 00 00 a0 30 84 00 00 00 00 00 00 00 00 00 00
+140: 00 00 00 e0 30 84 00 00 00 00 00 00 00 00 00 00
+150: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+160: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 170: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-180: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-190: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-1a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+180: 10 00 01 00 02 00 00 00 19 00 00 00 80 00 80 00
+190: 80 00 00 00 01 00 01 00 00 00 34 a0 53 05 00 00
+1a0: 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 1b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 1c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 1d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -303,3 +321,4 @@ fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+

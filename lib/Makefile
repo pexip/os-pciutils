@@ -1,9 +1,9 @@
 # Makefile for The PCI Library
-# (c) 1999--2008 Martin Mares <mj@ucw.cz>
+# (c) 1999--2014 Martin Mares <mj@ucw.cz>
 
 # Expects to be invoked from the top-level Makefile and uses lots of its variables.
 
-OBJS=init access generic dump names filter names-hash names-parse names-net names-cache params caps
+OBJS=init access generic dump names filter names-hash names-parse names-net names-cache names-hwdb params caps
 INCL=internal.h pci.h config.h header.h sysdep.h types.h
 
 ifdef PCI_HAVE_PM_LINUX_SYSFS
@@ -42,6 +42,10 @@ ifdef PCI_HAVE_PM_NBSD_LIBPCI
 OBJS += nbsd-libpci
 endif
 
+ifdef PCI_HAVE_PM_DARWIN_DEVICE
+OBJS += darwin
+endif
+
 all: $(PCILIB) $(PCILIBPC)
 
 ifeq ($(SHARED),no)
@@ -52,7 +56,11 @@ $(PCILIB): $(addsuffix .o,$(OBJS))
 else
 CFLAGS += -fPIC -fvisibility=hidden
 $(PCILIB): $(addsuffix .o,$(OBJS))
+ ifdef PCI_HAVE_PM_DARWIN_DEVICE
+	$(CC) -shared $(LDFLAGS) $(SONAME) -Wl,-install_name,$(LIBDIR)/$(PCILIB) -o $@ $^ $(LIB_LDLIBS)
+ else
 	$(CC) -shared $(LDFLAGS) $(SONAME) -Wl,--version-script=libpci.ver -o $@ $^ $(LIB_LDLIBS)
+ endif
 endif
 
 $(PCILIBPC): libpci.pc.in
@@ -80,5 +88,6 @@ names-cache.o: names-cache.c $(INCL) names.h
 names-hash.o: names-hash.c $(INCL) names.h
 names-net.o: names-net.c $(INCL) names.h
 names-parse.o: names-parse.c $(INCL) names.h
+names-hwdb.o: names-hwdb.c $(INCL) names.h
 filter.o: filter.c $(INCL)
 nbsd-libpci.o: nbsd-libpci.c $(INCL)

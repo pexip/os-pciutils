@@ -93,32 +93,41 @@ sysfs_get_string(struct pci_dev *d, char *object, char *buf, int mandatory)
   struct pci_access *a = d->access;
   int fd, n;
   char namebuf[OBJNAMELEN];
+  void (*warn)(char *msg, ...) = (mandatory ? a->error : a->warning);
 
   sysfs_obj_name(d, object, namebuf);
   fd = open(namebuf, O_RDONLY);
   if (fd < 0)
     {
-      if (mandatory)
-	a->error("Cannot open %s: %s", namebuf, strerror(errno));
+      if (mandatory || errno != ENOENT)
+	warn("Cannot open %s: %s", namebuf, strerror(errno));
       return 0;
     }
   n = read(fd, buf, OBJBUFSIZE);
   close(fd);
   if (n < 0)
-    a->error("Error reading %s: %s", namebuf, strerror(errno));
+    {
+      warn("Error reading %s: %s", namebuf, strerror(errno));
+      return 0;
+     }
   if (n >= OBJBUFSIZE)
-    a->error("Value in %s too long", namebuf);
+    {
+      warn("Value in %s too long", namebuf);
+      return 0;
+    }
   buf[n] = 0;
   return 1;
 }
 
 static int
-sysfs_get_value(struct pci_dev *d, char *object)
+sysfs_get_value(struct pci_dev *d, char *object, int mandatory)
 {
   char buf[OBJBUFSIZE];
 
-  sysfs_get_string(d, object, buf, 1);
-  return strtol(buf, NULL, 0);
+  if (sysfs_get_string(d, object, buf, mandatory))
+    return strtol(buf, NULL, 0);
+  else
+    return -1;
 }
 
 static void
@@ -144,14 +153,17 @@ sysfs_get_resources(struct pci_dev *d)
 	size = end - start + 1;
       else
 	size = 0;
-      flags &= PCI_ADDR_FLAG_MASK;
       if (i < 6)
 	{
+	  d->flags[i] = flags;
+	  flags &= PCI_ADDR_FLAG_MASK;
 	  d->base_addr[i] = start | flags;
 	  d->size[i] = size;
 	}
       else
 	{
+	  d->rom_flags = flags;
+	  flags &= PCI_ADDR_FLAG_MASK;
 	  d->rom_base_addr = start | flags;
 	  d->rom_size = size;
 	}
@@ -184,6 +196,11 @@ static void sysfs_scan(struct pci_access *a)
       d = pci_alloc_dev(a);
       if (sscanf(entry->d_name, "%x:%x:%x.%d", &dom, &bus, &dev, &func) < 4)
 	a->error("sysfs_scan: Couldn't parse entry name %s", entry->d_name);
+
+      /* Ensure kernel provided domain that fits in a signed integer */
+      if (dom > 0x7fffffff)
+	a->error("sysfs_scan: Invalid domain %x", dom);
+
       d->domain = dom;
       d->bus = bus;
       d->dev = dev;
@@ -191,15 +208,15 @@ static void sysfs_scan(struct pci_access *a)
       if (!a->buscentric)
 	{
 	  sysfs_get_resources(d);
-	  d->irq = sysfs_get_value(d, "irq");
+	  d->irq = sysfs_get_value(d, "irq", 1);
 	  /*
 	   *  We could read these faster from the config registers, but we want to give
 	   *  the kernel a chance to fix up ID's and especially classes of broken devices.
 	   */
-	  d->vendor_id = sysfs_get_value(d, "vendor");
-	  d->device_id = sysfs_get_value(d, "device");
-	  d->device_class = sysfs_get_value(d, "class") >> 8;
-	  d->known_fields = PCI_FILL_IDENT | PCI_FILL_CLASS | PCI_FILL_IRQ | PCI_FILL_BASES | PCI_FILL_ROM_BASE | PCI_FILL_SIZES;
+	  d->vendor_id = sysfs_get_value(d, "vendor", 1);
+	  d->device_id = sysfs_get_value(d, "device", 1);
+	  d->device_class = sysfs_get_value(d, "class", 1) >> 8;
+	  d->known_fields = PCI_FILL_IDENT | PCI_FILL_CLASS | PCI_FILL_IRQ | PCI_FILL_BASES | PCI_FILL_ROM_BASE | PCI_FILL_SIZES | PCI_FILL_IO_FLAGS;
 	}
       pci_link_dev(a, d);
     }
@@ -258,7 +275,7 @@ sysfs_fill_slots(struct pci_access *a)
       else
 	{
 	  for (d = a->devices; d; d = d->next)
-	    if (dom == d->domain && bus == d->bus && dev == d->dev && !d->phy_slot)
+	    if (dom == (unsigned)d->domain && bus == d->bus && dev == d->dev && !d->phy_slot)
 	      d->phy_slot = pci_strdup(a, entry->d_name);
 	}
       fclose(file);
@@ -283,6 +300,16 @@ sysfs_fill_info(struct pci_dev *d, int flags)
       if (sysfs_get_string(d, "modalias", buf, 0))
 	d->module_alias = pci_strdup(d->access, buf);
     }
+
+  if ((flags & PCI_FILL_LABEL) && !(d->known_fields & PCI_FILL_LABEL))
+    {
+      char buf[OBJBUFSIZE];
+      if (sysfs_get_string(d, "label", buf, 0))
+	d->label = pci_strdup(d->access, buf);
+    }
+
+  if ((flags & PCI_FILL_NUMA_NODE) && !(d->known_fields & PCI_FILL_NUMA_NODE))
+    d->numa_node = sysfs_get_value(d, "numa_node", 0);
 
   return pci_generic_fill_info(d, flags);
 }

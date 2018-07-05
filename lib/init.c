@@ -57,6 +57,11 @@ static struct pci_methods *pci_methods[PCI_ACCESS_MAX] = {
 #else
   NULL,
 #endif
+#ifdef PCI_HAVE_PM_DARWIN_DEVICE
+  &pm_darwin,
+#else
+  NULL,
+#endif
 };
 
 void *
@@ -77,7 +82,7 @@ pci_mfree(void *x)
 }
 
 char *
-pci_strdup(struct pci_access *a, char *s)
+pci_strdup(struct pci_access *a, const char *s)
 {
   int len = strlen(s) + 1;
   char *t = pci_malloc(a, len);
@@ -158,6 +163,9 @@ pci_alloc(void)
   pci_define_param(a, "net.cache_name", "~/.pciids-cache", "Name of the ID cache file");
   a->id_lookup_mode = PCI_LOOKUP_CACHE;
 #endif
+#ifdef PCI_HAVE_HWDB
+  pci_define_param(a, "hwdb.disable", "0", "Do not look up names in UDEV's HWDB if non-zero");
+#endif
   for (i=0; i<PCI_ACCESS_MAX; i++)
     if (pci_methods[i] && pci_methods[i]->config)
       pci_methods[i]->config(a);
@@ -165,7 +173,7 @@ pci_alloc(void)
 }
 
 void
-pci_init(struct pci_access *a)
+pci_init_v35(struct pci_access *a)
 {
   if (!a->error)
     a->error = pci_generic_error;
@@ -204,6 +212,11 @@ pci_init(struct pci_access *a)
   a->debug("Decided to use %s\n", a->methods->name);
   a->methods->init(a);
 }
+
+STATIC_ALIAS(void pci_init(struct pci_access *a), pci_init_v35(a));
+DEFINE_ALIAS(void pci_init_v30(struct pci_access *a), pci_init_v35);
+SYMBOL_VERSION(pci_init_v30, pci_init@LIBPCI_3.0);
+SYMBOL_VERSION(pci_init_v35, pci_init@@LIBPCI_3.5);
 
 void
 pci_cleanup(struct pci_access *a)

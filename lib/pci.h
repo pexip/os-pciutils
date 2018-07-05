@@ -1,7 +1,7 @@
 /*
  *	The PCI Library
  *
- *	Copyright (c) 1997--2013 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2016 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -16,7 +16,7 @@
 #include "header.h"
 #include "types.h"
 
-#define PCI_LIB_VERSION 0x030200
+#define PCI_LIB_VERSION 0x030502
 
 #ifndef PCI_ABI
 #define PCI_ABI
@@ -40,6 +40,7 @@ enum pci_access_type {
   PCI_ACCESS_NBSD_LIBPCI,		/* NetBSD libpci */
   PCI_ACCESS_OBSD_DEVICE,		/* OpenBSD /dev/pci */
   PCI_ACCESS_DUMP,			/* Dump file */
+  PCI_ACCESS_DARWIN,			/* Darwin */
   PCI_ACCESS_MAX
 };
 
@@ -72,6 +73,8 @@ struct pci_access {
   struct id_bucket *current_id_bucket;
   int id_load_failed;
   int id_cache_status;			/* 0=not read, 1=read, 2=dirty */
+  struct udev *id_udev;			/* names-hwdb.c */
+  struct udev_hwdb *id_udev_hwdb;
   int fd;				/* proc/sys: fd for config space */
   int fd_rw;				/* proc/sys: fd opened read-write */
   int fd_pos;				/* proc/sys: current position */
@@ -116,7 +119,8 @@ struct pci_param *pci_walk_params(struct pci_access *acc, struct pci_param *prev
 
 struct pci_dev {
   struct pci_dev *next;			/* Next device in the chain */
-  u16 domain;				/* PCI domain (host bridge) */
+  u16 domain_16;			/* 16-bit version of the PCI domain for backward compatibility */
+					/* 0xffff if the real domain doesn't fit in 16 bits */
   u8 bus, dev, func;			/* Bus inside domain, device and function */
 
   /* These fields are set by pci_fill_info() */
@@ -131,6 +135,11 @@ struct pci_dev {
   struct pci_cap *first_cap;		/* List of capabilities */
   char *phy_slot;			/* Physical slot */
   char *module_alias;			/* Linux kernel module alias */
+  char *label;				/* Device name as exported by BIOS */
+  int numa_node;			/* NUMA node */
+  pciaddr_t flags[6];			/* PCI_IORESOURCE_* flags for regions */
+  pciaddr_t rom_flags;			/* PCI_IORESOURCE_* flags for expansion ROM */
+  int domain;				/* PCI domain (host bridge) */
 
   /* Fields used internally: */
   struct pci_access *access;
@@ -157,17 +166,20 @@ int pci_write_block(struct pci_dev *, int pos, u8 *buf, int len) PCI_ABI;
 
 int pci_fill_info(struct pci_dev *, int flags) PCI_ABI; /* Fill in device information */
 
-#define PCI_FILL_IDENT		1
-#define PCI_FILL_IRQ		2
-#define PCI_FILL_BASES		4
-#define PCI_FILL_ROM_BASE	8
-#define PCI_FILL_SIZES		16
-#define PCI_FILL_CLASS		32
-#define PCI_FILL_CAPS		64
-#define PCI_FILL_EXT_CAPS	128
-#define PCI_FILL_PHYS_SLOT	256
-#define PCI_FILL_MODULE_ALIAS	512
-#define PCI_FILL_RESCAN		0x10000
+#define PCI_FILL_IDENT		0x0001
+#define PCI_FILL_IRQ		0x0002
+#define PCI_FILL_BASES		0x0004
+#define PCI_FILL_ROM_BASE	0x0008
+#define PCI_FILL_SIZES		0x0010
+#define PCI_FILL_CLASS		0x0020
+#define PCI_FILL_CAPS		0x0040
+#define PCI_FILL_EXT_CAPS	0x0080
+#define PCI_FILL_PHYS_SLOT	0x0100
+#define PCI_FILL_MODULE_ALIAS	0x0200
+#define PCI_FILL_LABEL		0x0400
+#define PCI_FILL_NUMA_NODE	0x0800
+#define PCI_FILL_IO_FLAGS	0x1000
+#define PCI_FILL_RESCAN		0x00010000
 
 void pci_setup_cache(struct pci_dev *, u8 *cache, int len) PCI_ABI;
 
@@ -193,7 +205,8 @@ struct pci_cap *pci_find_cap(struct pci_dev *, unsigned int id, unsigned int typ
 
 struct pci_filter {
   int domain, bus, slot, func;			/* -1 = ANY */
-  int vendor, device;
+  int vendor, device, device_class;
+  int rfu[3];
 };
 
 void pci_filter_init(struct pci_access *, struct pci_filter *) PCI_ABI;
@@ -237,6 +250,7 @@ enum pci_lookup_mode {
   PCI_LOOKUP_SKIP_LOCAL = 0x100000,	/* Do not consult local database */
   PCI_LOOKUP_CACHE = 0x200000,		/* Consult the local cache before using DNS */
   PCI_LOOKUP_REFRESH_CACHE = 0x400000,	/* Forget all previously cached entries, but still allow updating the cache */
+  PCI_LOOKUP_NO_HWDB = 0x800000,	/* Do not ask udev's hwdb */
 };
 
 #endif
