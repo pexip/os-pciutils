@@ -203,6 +203,7 @@
 #define  PCI_CAP_ID_MSIX	0x11	/* MSI-X */
 #define  PCI_CAP_ID_SATA	0x12	/* Serial-ATA HBA */
 #define  PCI_CAP_ID_AF		0x13	/* Advanced features of PCI devices integrated in PCIe root cplx */
+#define  PCI_CAP_ID_EA		0x14	/* Enhanced Allocation */
 #define PCI_CAP_LIST_NEXT	1	/* Next capability in the list */
 #define PCI_CAP_FLAGS		2	/* Capability defined flags (16 bits) */
 #define PCI_CAP_SIZEOF		4
@@ -224,9 +225,13 @@
 #define PCI_EXT_CAP_ID_ARI	0x0e	/* Alternative Routing-ID Interpretation */
 #define PCI_EXT_CAP_ID_ATS	0x0f	/* Address Translation Service */
 #define PCI_EXT_CAP_ID_SRIOV	0x10	/* Single Root I/O Virtualization */
+#define PCI_EXT_CAP_ID_PRI	0x13	/* Page Request Interface */
 #define PCI_EXT_CAP_ID_TPH	0x17	/* Transaction processing hints */
 #define PCI_EXT_CAP_ID_LTR	0x18	/* Latency Tolerance Reporting */
+#define PCI_EXT_CAP_ID_PASID	0x1b	/* Process Address Space ID */
+#define PCI_EXT_CAP_ID_DPC	0x1d	/* Downstream Port Containment */
 #define PCI_EXT_CAP_ID_L1PM	0x1e	/* L1 PM Substates */
+#define PCI_EXT_CAP_ID_PTM	0x1f	/* Precision Time Measurement */
 
 /*** Definitions of capabilities ***/
 
@@ -778,6 +783,7 @@
 #define  PCI_EXP_LNKCAP_SURPRISE 0x80000 /* Surprise Down Error Reporting */
 #define  PCI_EXP_LNKCAP_DLLA	0x100000 /* Data Link Layer Active Reporting */
 #define  PCI_EXP_LNKCAP_LBNC	0x200000 /* Link Bandwidth Notification Capability */
+#define  PCI_EXP_LNKCAP_AOC 	0x400000 /* ASPM Optionality Compliance */
 #define  PCI_EXP_LNKCAP_PORT	0xff000000 /* Port Number */
 #define PCI_EXP_LNKCTL		0x10	/* Link Control */
 #define  PCI_EXP_LNKCTL_ASPM	0x0003	/* ASPM Control */
@@ -841,7 +847,7 @@
 #define  PCI_EXP_RTCTL_PMEIE	0x0008	/* PME Interrupt Enable */
 #define  PCI_EXP_RTCTL_CRSVIS	0x0010	/* Configuration Request Retry Status Visible to SW */
 #define PCI_EXP_RTCAP		0x1e	/* Root Capabilities */
-#define  PCI_EXP_RTCAP_CRSVIS	0x0010	/* Configuration Request Retry Status Visible to SW */
+#define  PCI_EXP_RTCAP_CRSVIS	0x0001	/* Configuration Request Retry Status Visible to SW */
 #define PCI_EXP_RTSTA		0x20	/* Root Status */
 #define  PCI_EXP_RTSTA_PME_REQID   0x0000ffff /* PME Requester ID */
 #define  PCI_EXP_RTSTA_PME_STATUS  0x00010000 /* PME Status */
@@ -902,6 +908,13 @@
 /* SATA Host Bus Adapter */
 #define PCI_SATA_HBA_BARS	4
 #define PCI_SATA_HBA_REG0	8
+
+/* Enhanced Allocation (EA) */
+#define PCI_EA_CAP_TYPE1_SECONDARY	4
+#define PCI_EA_CAP_TYPE1_SUBORDINATE	5
+/* EA Entry header */
+#define PCI_EA_CAP_ENT_WRITABLE	0x40000000	/* Writable: 1 = RW, 0 = HwInit */
+#define PCI_EA_CAP_ENT_ENABLE	0x80000000	/* Enable for this entry */
 
 /*** Definitions of extended capabilities ***/
 
@@ -1041,6 +1054,17 @@
 #define PCI_IOV_MSA_BIR(x)	((x) & 7) /* VF Migration State BIR */
 #define PCI_IOV_MSA_OFFSET(x)	((x) & 0xfffffff8) /* VF Migration State Offset */
 
+/* Page Request Interface */
+#define PCI_PRI_CTRL		0x04	/* PRI Control Register */
+#define  PCI_PRI_CTRL_ENABLE	0x01	/* Enable */
+#define  PCI_PRI_CTRL_RESET	0x02	/* Reset */
+#define PCI_PRI_STATUS		0x06	/* PRI status register */
+#define  PCI_PRI_STATUS_RF	0x001	/* Response Failure */
+#define  PCI_PRI_STATUS_UPRGI	0x002	/* Unexpected PRG index */
+#define  PCI_PRI_STATUS_STOPPED	0x100	/* PRI Stopped */
+#define PCI_PRI_MAX_REQ		0x08	/* PRI max reqs supported */
+#define PCI_PRI_ALLOC_REQ	0x0c	/* PRI max reqs allowed */
+
 /* Transaction Processing Hints */
 #define PCI_TPH_CAPABILITIES	4
 #define   PCI_TPH_INTVEC_SUP	(1<<1)	/* Supports interrupt vector mode */
@@ -1058,6 +1082,54 @@
 #define   PCI_LTR_SCALE_SHIFT	(10)
 #define   PCI_LTR_SCALE_MASK	(7)
 #define PCI_LTR_MAX_NOSNOOP	6	/* 16 bit value */
+
+/* Process Address Space ID */
+#define PCI_PASID_CAP		0x04	/* PASID feature register */
+#define  PCI_PASID_CAP_EXEC	0x02	/* Exec permissions Supported */
+#define  PCI_PASID_CAP_PRIV	0x04	/* Privilege Mode Supported */
+#define  PCI_PASID_CAP_WIDTH(x) (((x) >> 8) & 0x1f) /* Max PASID Width */
+#define PCI_PASID_CTRL		0x06	/* PASID control register */
+#define  PCI_PASID_CTRL_ENABLE	0x01	/* Enable bit */
+#define  PCI_PASID_CTRL_EXEC	0x02	/* Exec permissions Enable */
+#define  PCI_PASID_CTRL_PRIV	0x04	/* Privilege Mode Enable */
+
+#define PCI_DPC_CAP		4	/* DPC Capability */
+#define  PCI_DPC_CAP_INT_MSG(x) ((x) & 0x1f)	/* DPC Interrupt Message Number */
+#define  PCI_DPC_CAP_RP_EXT	0x20		/* DPC Root Port Extentions */
+#define  PCI_DPC_CAP_TLP_BLOCK	0x40		/* DPC Poisoned TLP Egress Blocking */
+#define  PCI_DPC_CAP_SW_TRIGGER	0x80		/* DPC Software Trigger */
+#define  PCI_DPC_CAP_RP_LOG(x)	(((x) >> 8) & 0xf) /* DPC RP PIO Log Size */
+#define  PCI_DPC_CAP_DL_ACT_ERR	0x1000		/* DPC DL_Active ERR_COR Signal */
+#define PCI_DPC_CTL		6	/* DPC Control */
+#define  PCI_DPC_CTL_TRIGGER(x) ((x) & 0x3)	/* DPC Trigger Enable */
+#define  PCI_DPC_CTL_CMPL	0x4		/* DPC Completion Control */
+#define  PCI_DPC_CTL_INT	0x8		/* DPC Interrupt Enabled */
+#define  PCI_DPC_CTL_ERR_COR	0x10		/* DPC ERR_COR Enabled */
+#define  PCI_DPC_CTL_TLP	0x20		/* DPC Poisoned TLP Egress Blocking Enabled */
+#define  PCI_DPC_CTL_SW_TRIGGER	0x40		/* DPC Software Trigger */
+#define  PCI_DPC_CTL_DL_ACTIVE	0x80		/* DPC DL_Active ERR_COR Enable */
+#define PCI_DPC_STATUS		8	/* DPC STATUS */
+#define  PCI_DPC_STS_TRIGGER	0x01		/* DPC Trigger Status */
+#define  PCI_DPC_STS_REASON(x) (((x) >> 1) & 0x3) /* DPC Trigger Reason */
+#define  PCI_DPC_STS_INT	0x08		/* DPC Interrupt Status */
+#define  PCI_DPC_STS_RP_BUSY	0x10		/* DPC Root Port Busy */
+#define  PCI_DPC_STS_TRIGGER_EXT(x) (((x) >> 5) & 0x3) /* Trigger Reason Extention */
+#define  PCI_DPC_STS_PIO_FEP(x) (((x) >> 8) & 0x1f) /* DPC PIO First Error Pointer */
+#define PCI_DPC_SOURCE		10	/* DPC Source ID */
+
+/* L1 PM Substates Extended Capability */
+#define PCI_L1PM_SUBSTAT_CAP	0x4	/* L1 PM Substate Capability */
+#define  PCI_L1PM_SUBSTAT_CAP_PM_L12	0x1	/* PCI-PM L1.2 Supported */
+#define  PCI_L1PM_SUBSTAT_CAP_PM_L11	0x2	/* PCI-PM L1.1 Supported */
+#define  PCI_L1PM_SUBSTAT_CAP_ASPM_L12	0x4	/* ASPM L1.2 Supported */
+#define  PCI_L1PM_SUBSTAT_CAP_ASPM_L11	0x8	/* ASPM L1.1 Supported */
+#define  PCI_L1PM_SUBSTAT_CAP_L1PM_SUPP	0x16	/* L1 PM Substates supported */
+#define PCI_L1PM_SUBSTAT_CTL1	0x8	/* L1 PM Substate Control 1 */
+#define  PCI_L1PM_SUBSTAT_CTL1_PM_L12	0x1	/* PCI-PM L1.2 Enable */
+#define  PCI_L1PM_SUBSTAT_CTL1_PM_L11	0x2	/* PCI-PM L1.1 Enable */
+#define  PCI_L1PM_SUBSTAT_CTL1_ASPM_L12	0x4	/* ASPM L1.2 Enable */
+#define  PCI_L1PM_SUBSTAT_CTL1_ASPM_L11	0x8	/* ASPM L1.1 Enable */
+#define PCI_L1PM_SUBSTAT_CTL2	0xC	/* L1 PM Substate Control 2 */
 
 /*
  * The PCI interface treats multi-function devices as independent
@@ -1204,3 +1276,7 @@
 
 #define PCI_VENDOR_ID_INTEL		0x8086
 #define PCI_VENDOR_ID_COMPAQ		0x0e11
+
+/* I/O resource flags, compatible with <include/linux/ioport.h> */
+
+#define PCI_IORESOURCE_PCI_EA_BEI	(1<<5)

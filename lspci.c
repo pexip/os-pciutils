@@ -1,7 +1,7 @@
 /*
  *	The PCI Utilities -- List All PCI Devices
  *
- *	Copyright (c) 1997--2008 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2015 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -60,7 +60,7 @@ static char help_msg[] =
 "\n"
 "Selection of devices:\n"
 "-s [[[[<domain>]:]<bus>]:][<slot>][.[<func>]]\tShow only devices in selected slots\n"
-"-d [<vendor>]:[<device>]\t\t\tShow only devices with specified ID's\n"
+"-d [<vendor>]:[<device>][:<class>]\t\tShow only devices with specified ID's\n"
 "\n"
 "Other options:\n"
 "-i <file>\tUse specified ID database instead of %s\n"
@@ -138,7 +138,7 @@ scan_device(struct pci_dev *p)
 	d->config_cached += 64;
     }
   pci_setup_cache(p, d->config, d->config_cached);
-  pci_fill_info(p, PCI_FILL_IDENT | PCI_FILL_CLASS | PCI_FILL_IRQ | PCI_FILL_BASES | PCI_FILL_ROM_BASE | PCI_FILL_SIZES | PCI_FILL_PHYS_SLOT);
+  pci_fill_info(p, PCI_FILL_IDENT | PCI_FILL_CLASS);
   return d;
 }
 
@@ -315,6 +315,8 @@ show_terse(struct device *d)
       word subsys_v, subsys_d;
       char ssnamebuf[256];
 
+      if (p->label)
+        printf("\tDeviceName: %s", p->label);
       get_subid(d, &subsys_v, &subsys_d);
       if (subsys_v && subsys_v != 0xffff)
 	printf("\tSubsystem: %s\n",
@@ -334,7 +336,7 @@ show_size(pciaddr_t x)
   if (!x)
     return;
   for (i = 0; i < (sizeof(suffix) / sizeof(*suffix) - 1); i++) {
-    if (x < 1024)
+    if (x % 1024)
       break;
     x /= 1024;
   }
@@ -353,6 +355,7 @@ show_bases(struct device *d, int cnt)
     {
       pciaddr_t pos = p->base_addr[i];
       pciaddr_t len = (p->known_fields & PCI_FILL_SIZES) ? p->size[i] : 0;
+      pciaddr_t ioflg = (p->known_fields & PCI_FILL_IO_FLAGS) ? p->flags[i] : 0;
       u32 flg = get_conf_long(d, PCI_BASE_ADDRESS_0 + 4*i);
       if (flg == 0xffffffff)
 	flg = 0;
@@ -362,7 +365,9 @@ show_bases(struct device *d, int cnt)
 	printf("\tRegion %d: ", i);
       else
 	putchar('\t');
-      if (pos && !flg)			/* Reported by the OS, but not by the device */
+      if (ioflg & PCI_IORESOURCE_PCI_EA_BEI)
+	  printf("[enhanced] ");
+      else if (pos && !flg)	/* Reported by the OS, but not by the device */
 	{
 	  printf("[virtual] ");
 	  flg = pos;
@@ -428,6 +433,7 @@ show_rom(struct device *d, int reg)
   struct pci_dev *p = d->dev;
   pciaddr_t rom = p->rom_base_addr;
   pciaddr_t len = (p->known_fields & PCI_FILL_SIZES) ? p->rom_size : 0;
+  pciaddr_t ioflg = (p->known_fields & PCI_FILL_IO_FLAGS) ? p->rom_flags : 0;
   u32 flg = get_conf_long(d, reg);
   word cmd = get_conf_word(d, PCI_COMMAND);
   int virtual = 0;
@@ -435,7 +441,9 @@ show_rom(struct device *d, int reg)
   if (!rom && !flg && !len)
     return;
   putchar('\t');
-  if ((rom & PCI_ROM_ADDRESS_MASK) && !(flg & PCI_ROM_ADDRESS_MASK))
+  if (ioflg & PCI_IORESOURCE_PCI_EA_BEI)
+      printf("[enhanced] ");
+  else if ((rom & PCI_ROM_ADDRESS_MASK) && !(flg & PCI_ROM_ADDRESS_MASK))
     {
       printf("[virtual] ");
       flg = rom;
@@ -651,9 +659,13 @@ show_verbose(struct device *d)
   byte cache_line = get_conf_byte(d, PCI_CACHE_LINE_SIZE);
   byte max_lat, min_gnt;
   byte int_pin = get_conf_byte(d, PCI_INTERRUPT_PIN);
-  unsigned int irq = p->irq;
+  unsigned int irq;
 
   show_terse(d);
+
+  pci_fill_info(p, PCI_FILL_IRQ | PCI_FILL_BASES | PCI_FILL_ROM_BASE | PCI_FILL_SIZES |
+    PCI_FILL_PHYS_SLOT | PCI_FILL_LABEL | PCI_FILL_NUMA_NODE);
+  irq = p->irq;
 
   switch (htype)
     {
@@ -666,7 +678,7 @@ show_verbose(struct device *d)
     case PCI_HEADER_TYPE_BRIDGE:
       if ((class >> 8) != PCI_BASE_CLASS_BRIDGE)
 	printf("\t!!! Invalid class %04x for header type %02x\n", class, htype);
-      irq = int_pin = min_gnt = max_lat = 0;
+      min_gnt = max_lat = 0;
       break;
     case PCI_HEADER_TYPE_CARDBUS:
       if ((class >> 8) != PCI_BASE_CLASS_BRIDGE)
@@ -731,6 +743,8 @@ show_verbose(struct device *d)
       if (int_pin || irq)
 	printf("\tInterrupt: pin %c routed to IRQ " PCIIRQ_FMT "\n",
 	       (int_pin ? 'A' + int_pin - 1 : '?'), irq);
+      if (p->numa_node != -1)
+	printf("\tNUMA node: %d\n", p->numa_node);
     }
   else
     {
@@ -755,6 +769,8 @@ show_verbose(struct device *d)
 	printf(", latency %d", latency);
       if (irq)
 	printf(", IRQ " PCIIRQ_FMT, irq);
+      if (p->numa_node != -1)
+	printf(", NUMA node %d", p->numa_node);
       putchar('\n');
     }
 
@@ -830,6 +846,7 @@ show_machine(struct device *d)
 
   if (verbose)
     {
+      pci_fill_info(p, PCI_FILL_PHYS_SLOT | PCI_FILL_NUMA_NODE);
       printf((opt_machine >= 2) ? "Slot:\t" : "Device:\t");
       show_slot_name(d);
       putchar('\n');
@@ -854,6 +871,8 @@ show_machine(struct device *d)
 	printf("ProgIf:\t%02x\n", c);
       if (opt_kernel)
 	show_kernel_machine(d);
+      if (p->numa_node != -1)
+	printf("NUMANode:\t%d\n", p->numa_node);
     }
   else
     {
