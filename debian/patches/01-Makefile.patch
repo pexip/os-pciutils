@@ -22,10 +22,11 @@ Index: pciutils-3.5.2/Makefile
  
  lib/$(PCILIB): $(PCIINC) force
  	$(MAKE) -C lib all
-@@ -70,7 +72,9 @@ lib/config.h lib/config.mk:
+@@ -70,7 +72,10 @@ lib/config.h lib/config.mk:
  	cd lib && ./configure
  
  lspci: lspci.o ls-vpd.o ls-caps.o ls-caps-vendor.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o common.o lib/$(PCILIB)
++lib/libpci.a: lib/$(PCILIB)
 +lspci-udeb: lspci.o ls-vpd.o ls-caps.o ls-caps-vendor.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o common.o lib/libpci.a
  setpci: setpci.o common.o lib/$(PCILIB)
 +pcimodules: pcimodules.o common.o lib/$(PCILIB)
