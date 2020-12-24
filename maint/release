@@ -4,7 +4,7 @@
 
 use strict;
 use warnings;
-require "maint/release.pm";
+require "./maint/release.pm";
 
 # Check API version
 my $apiver = "???";
@@ -29,7 +29,7 @@ if ($ver =~ /-/) {
 	$r->{"conditions"}->{"ALPHA_VERSION"} = -1;
 }
 push @{$r->{"uploads"}}, {
-	"url" => "scp://atrey.karlin.mff.cuni.cz/~ftp/pub/linux/pci/" . $r->{"ALPHADIR"}
+	"url" => "scp://jabberwock.ucw.cz/home/ftp/pub/mj/linux/pci/" . $r->{"ALPHADIR"}
 ##	},{
 ##	"url" => "scp://master.kernel.org/pub/software/utils/pciutils/" . $r->{"ALPHADIR"}
 	};

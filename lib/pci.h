@@ -1,7 +1,7 @@
 /*
  *	The PCI Library
  *
- *	Copyright (c) 1997--2016 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -16,7 +16,7 @@
 #include "header.h"
 #include "types.h"
 
-#define PCI_LIB_VERSION 0x030502
+#define PCI_LIB_VERSION 0x030700
 
 #ifndef PCI_ABI
 #define PCI_ABI
@@ -29,7 +29,7 @@
 struct pci_methods;
 
 enum pci_access_type {
-  /* Known access methods, remember to update access.c as well */
+  /* Known access methods, remember to update init.c as well */
   PCI_ACCESS_AUTO,			/* Autodetection */
   PCI_ACCESS_SYS_BUS_PCI,		/* Linux /sys/bus/pci */
   PCI_ACCESS_PROC_BUS_PCI,		/* Linux /proc/bus/pci */
@@ -41,6 +41,8 @@ enum pci_access_type {
   PCI_ACCESS_OBSD_DEVICE,		/* OpenBSD /dev/pci */
   PCI_ACCESS_DUMP,			/* Dump file */
   PCI_ACCESS_DARWIN,			/* Darwin */
+  PCI_ACCESS_SYLIXOS_DEVICE,		/* SylixOS pci */
+  PCI_ACCESS_HURD,			/* GNU/Hurd */
   PCI_ACCESS_MAX
 };
 
@@ -124,7 +126,7 @@ struct pci_dev {
   u8 bus, dev, func;			/* Bus inside domain, device and function */
 
   /* These fields are set by pci_fill_info() */
-  int known_fields;			/* Set of info fields already known */
+  unsigned int known_fields;		/* Set of info fields already known (see pci_fill_info()) */
   u16 vendor_id, device_id;		/* Identity of the device */
   u16 device_class;			/* PCI device class */
   int irq;				/* IRQ number */
@@ -141,13 +143,15 @@ struct pci_dev {
   pciaddr_t rom_flags;			/* PCI_IORESOURCE_* flags for expansion ROM */
   int domain;				/* PCI domain (host bridge) */
 
-  /* Fields used internally: */
+  /* Fields used internally */
   struct pci_access *access;
   struct pci_methods *methods;
   u8 *cache;				/* Cached config registers */
   int cache_len;
   int hdrtype;				/* Cached low 7 bits of header type, -1 if unknown */
-  void *aux;				/* Auxillary data */
+  void *aux;				/* Auxiliary data for use by the back-end */
+  struct pci_property *properties;	/* A linked list of extra properties */
+  struct pci_cap *last_cap;		/* Last capability in the list */
 };
 
 #define PCI_ADDR_IO_MASK (~(pciaddr_t) 0x3)
@@ -164,7 +168,27 @@ int pci_write_word(struct pci_dev *, int pos, u16 data) PCI_ABI;
 int pci_write_long(struct pci_dev *, int pos, u32 data) PCI_ABI;
 int pci_write_block(struct pci_dev *, int pos, u8 *buf, int len) PCI_ABI;
 
-int pci_fill_info(struct pci_dev *, int flags) PCI_ABI; /* Fill in device information */
+/*
+ * Most device properties take some effort to obtain, so libpci does not
+ * initialize them during default bus scan. Instead, you have to call
+ * pci_fill_info() with the proper PCI_FILL_xxx constants OR'ed together.
+ *
+ * Some properties are stored directly in the pci_dev structure.
+ * The remaining ones can be accessed through pci_get_string_property().
+ *
+ * pci_fill_info() returns the current value of pci_dev->known_fields.
+ * This is a bit mask of all fields, which were already obtained during
+ * the lifetime of the device. This includes fields which are not supported
+ * by the particular device -- in that case, the field is left at its default
+ * value, which is 0 for integer fields and NULL for pointers. On the other
+ * hand, we never consider known fields unsupported by the current back-end;
+ * such fields always contain the default value.
+ *
+ * XXX: flags and the result should be unsigned, but we do not want to break the ABI.
+ */
+
+int pci_fill_info(struct pci_dev *, int flags) PCI_ABI;
+char *pci_get_string_property(struct pci_dev *d, u32 prop) PCI_ABI;
 
 #define PCI_FILL_IDENT		0x0001
 #define PCI_FILL_IRQ		0x0002
@@ -179,6 +203,8 @@ int pci_fill_info(struct pci_dev *, int flags) PCI_ABI; /* Fill in device inform
 #define PCI_FILL_LABEL		0x0400
 #define PCI_FILL_NUMA_NODE	0x0800
 #define PCI_FILL_IO_FLAGS	0x1000
+#define PCI_FILL_DT_NODE	0x2000		/* Device tree node */
+#define PCI_FILL_IOMMU_GROUP	0x4000
 #define PCI_FILL_RESCAN		0x00010000
 
 void pci_setup_cache(struct pci_dev *, u8 *cache, int len) PCI_ABI;
@@ -198,6 +224,8 @@ struct pci_cap {
 #define PCI_CAP_EXTENDED	2	/* PCIe extended capabilities */
 
 struct pci_cap *pci_find_cap(struct pci_dev *, unsigned int id, unsigned int type) PCI_ABI;
+struct pci_cap *pci_find_cap_nr(struct pci_dev *, unsigned int id, unsigned int type,
+                                unsigned int *cap_number) PCI_ABI;
 
 /*
  *	Filters

@@ -1,10 +1,10 @@
-This package contains the PCI Utilities, version 3.5.2.
+This package contains the PCI Utilities, version 3.7.0.
 
-Copyright (c) 1997--2016 Martin Mares <mj@ucw.cz>
+Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
 
 All files in this package can be freely distributed and used according
 to the terms of the GNU General Public License, either version 2 or
-(at your opinion) any newer version. See http://www.gnu.org/ for details.
+(at your opinion) any newer version. See https://www.gnu.org/ for details.
 
 
 1. What's that?
@@ -27,6 +27,8 @@ In runs on the following systems:
 	BeOS		(via syscalls)
 	Haiku		(via /dev/misc/poke)
 	Darwin		(via IOKit)
+	DOS/DJGPP	(via i386 ports)
+	SylixOS		(via /proc/pci)
 
 It should be very easy to add support for other systems as well (volunteers
 wanted; if you want to try that, I'll be very glad to see the patches and
@@ -91,7 +93,7 @@ When you are bored of dumping PCI registers, just use "make uninstall".
 The database of PCI IDs (the pci.ids file) gets out of date much faster
 than I release new versions of this package, so it is maintained separately.
 
-It lives at http://pci-ids.ucw.cz/, where you can browse the database,
+It lives at https://pci-ids.ucw.cz/, where you can browse the database,
 download the most recent pci.ids file (e.g., by running the update-ids utility)
 and also submit new entries.
 
@@ -108,16 +110,17 @@ database is consulted when pci.ids lacks the device.
 ~~~~~~~~~~~~~~~~~~~~~~~
 The current version of pciutils is available at:
 
-	http://mj.ucw.cz/sw/pciutils/
+	https://mj.ucw.cz/sw/pciutils/
 
 The tarball can be downloaded at the following places:
 
-	ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/
-	ftp://ftp.kernel.org/pub/software/utils/pciutils/ (expect a couple of hours delay)
+	https://mj.ucw.cz/download/linux/pci/
+	ftp://ftp.ucw.cz/pub/mj/linux/pci/
+	https://www.kernel.org/pub/software/utils/pciutils/ (expect a couple of hours delay)
 
 There is also a public GIT tree at:
 
-	git://git.kernel.org/pub/scm/utils/pciutils/pciutils.git
+	https://git.kernel.org/pub/scm/utils/pciutils/pciutils.git
 	https://github.com/pciutils/pciutils
 
 
@@ -134,7 +137,7 @@ the example program example.c.
 If you have any bug reports or suggestions, send them to the author.
 
 If you have any new IDs, I'll be very glad to add them to the database.
-Just submit them at http://pci-ids.ucw.cz/.
+Just submit them at https://pci-ids.ucw.cz/.
 
 Announcements of new versions are sent to linux-pci@vger.kernel.org
 (see http://vger.kernel.org/ for instructions).

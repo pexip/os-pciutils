@@ -10,6 +10,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #include "lspci.h"
 
@@ -33,7 +34,7 @@ static const struct vpd_item {
 } vpd_items[] = {
   { 'C','P', F_BINARY,	"Extended capability" },
   { 'E','C', F_TEXT,	"Engineering changes" },
-  { 'M','N', F_BINARY,	"Manufacture ID" },
+  { 'M','N', F_TEXT,	"Manufacture ID" },
   { 'P','N', F_TEXT,	"Part number" },
   { 'R','V', F_RESVD,	"Reserved" },
   { 'R','W', F_RDWR,	"Read-write area" },
@@ -41,6 +42,13 @@ static const struct vpd_item {
   { 'Y','A', F_TEXT,	"Asset tag" },
   { 'V', 0 , F_TEXT,	"Vendor specific" },
   { 'Y', 0 , F_TEXT,	"System specific" },
+  /* Non-standard extensions */
+  { 'C','C', F_TEXT,	"CCIN" },
+  { 'F','C', F_TEXT,	"Feature code" },
+  { 'F','N', F_TEXT,	"FRU" },
+  { 'N','A', F_TEXT,	"Network address" },
+  { 'R','M', F_TEXT,	"Firmware version" },
+  { 'Z', 0 , F_TEXT,	"Product specific" },
   {  0,  0 , F_BINARY,	"Unknown" }
 };
 
@@ -149,13 +157,14 @@ cap_vpd(struct device *d)
 	    {
 	      word read_len;
 	      const struct vpd_item *item;
-	      byte id1, id2;
+	      byte id[2], id1, id2;
 
 	      if (!read_vpd(d, res_addr + part_pos, buf, 3, &csum))
 		break;
 	      part_pos += 3;
-	      id1 = buf[0];
-	      id2 = buf[1];
+	      memcpy(id, buf, 2);
+	      id1 = id[0];
+	      id2 = id[1];
 	      part_len = buf[2];
 	      if (part_len > res_len - part_pos)
 		break;
@@ -171,7 +180,9 @@ cap_vpd(struct device *d)
 	      if (!read_vpd(d, res_addr + part_pos, buf, read_len, &csum))
 		break;
 
-	      printf("\t\t\t[%c%c] %s: ", id1, id2, item->name);
+	      printf("\t\t\t[");
+	      print_vpd_string(id, 2);
+	      printf("] %s: ", item->name);
 
 	      switch (item->format)
 	        {

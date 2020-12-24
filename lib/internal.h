@@ -1,7 +1,7 @@
 /*
  *	The PCI Library -- Internal Stuff
  *
- *	Copyright (c) 1997--2014 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2018 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -41,7 +41,7 @@ struct pci_methods {
   void (*init)(struct pci_access *);
   void (*cleanup)(struct pci_access *);
   void (*scan)(struct pci_access *);
-  int (*fill_info)(struct pci_dev *, int flags);
+  unsigned int (*fill_info)(struct pci_dev *, unsigned int flags);
   int (*read)(struct pci_dev *, int pos, byte *buf, int len);
   int (*write)(struct pci_dev *, int pos, byte *buf, int len);
   int (*read_vpd)(struct pci_dev *, int pos, byte *buf, int len);
@@ -52,7 +52,7 @@ struct pci_methods {
 /* generic.c */
 void pci_generic_scan_bus(struct pci_access *, byte *busmap, int bus);
 void pci_generic_scan(struct pci_access *);
-int pci_generic_fill_info(struct pci_dev *, int flags);
+unsigned int pci_generic_fill_info(struct pci_dev *, unsigned int flags);
 int pci_generic_block_read(struct pci_dev *, int pos, byte *buf, int len);
 int pci_generic_block_write(struct pci_dev *, int pos, byte *buf, int len);
 
@@ -75,6 +75,14 @@ int pci_fill_info_v33(struct pci_dev *, int flags) VERSIONED_ABI;
 int pci_fill_info_v34(struct pci_dev *, int flags) VERSIONED_ABI;
 int pci_fill_info_v35(struct pci_dev *, int flags) VERSIONED_ABI;
 
+struct pci_property {
+  struct pci_property *next;
+  u32 key;
+  char value[1];
+};
+
+char *pci_set_property(struct pci_dev *d, u32 key, char *value);
+
 /* params.c */
 void pci_define_param(struct pci_access *acc, char *param, char *val, char *help);
 int pci_set_param_internal(struct pci_access *acc, char *param, char *val, int copy);
@@ -86,4 +94,4 @@ void pci_free_caps(struct pci_dev *);
 
 extern struct pci_methods pm_intel_conf1, pm_intel_conf2, pm_linux_proc,
 	pm_fbsd_device, pm_aix_device, pm_nbsd_libpci, pm_obsd_device,
-	pm_dump, pm_linux_sysfs, pm_darwin;
+	pm_dump, pm_linux_sysfs, pm_darwin, pm_sylixos_device, pm_hurd;

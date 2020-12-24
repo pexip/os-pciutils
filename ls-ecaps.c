@@ -1,7 +1,7 @@
 /*
  *	The PCI Utilities -- Show Extended Capabilities
  *
- *	Copyright (c) 1997--2010 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -77,6 +77,37 @@ cap_ltr(struct device *d, int where)
 }
 
 static void
+cap_sec(struct device *d, int where)
+{
+  u32 ctrl3, lane_err_stat;
+  u8 lane;
+  printf("Secondary PCI Express\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_SEC_LNKCTL3, 12))
+    return;
+
+  ctrl3 = get_conf_word(d, where + PCI_SEC_LNKCTL3);
+  printf("\t\tLnkCtl3: LnkEquIntrruptEn%c PerformEqu%c\n",
+	FLAG(ctrl3, PCI_SEC_LNKCTL3_LNK_EQU_REQ_INTR_EN),
+	FLAG(ctrl3, PCI_SEC_LNKCTL3_PERFORM_LINK_EQU));
+
+  lane_err_stat = get_conf_word(d, where + PCI_SEC_LANE_ERR);
+  printf("\t\tLaneErrStat: ");
+  if (lane_err_stat)
+    {
+      printf("LaneErr at lane:");
+      for (lane = 0; lane_err_stat; lane_err_stat >>= 1, lane += 1)
+        if (BITS(lane_err_stat, 0, 1))
+          printf(" %u", lane);
+    }
+  else
+    printf("0");
+  printf("\n");
+}
+
+static void
 cap_dsn(struct device *d, int where)
 {
   u32 t1, t2;
@@ -90,15 +121,16 @@ cap_dsn(struct device *d, int where)
 }
 
 static void
-cap_aer(struct device *d, int where)
+cap_aer(struct device *d, int where, int type)
 {
-  u32 l;
+  u32 l, l0, l1, l2, l3;
+  u16 w;
 
   printf("Advanced Error Reporting\n");
   if (verbose < 2)
     return;
 
-  if (!config_fetch(d, where + PCI_ERR_UNCOR_STATUS, 24))
+  if (!config_fetch(d, where + PCI_ERR_UNCOR_STATUS, 40))
     return;
 
   l = get_conf_long(d, where + PCI_ERR_UNCOR_STATUS);
@@ -123,18 +155,56 @@ cap_aer(struct device *d, int where)
 	FLAG(l, PCI_ERR_UNC_UNX_COMP), FLAG(l, PCI_ERR_UNC_RX_OVER), FLAG(l, PCI_ERR_UNC_MALF_TLP),
 	FLAG(l, PCI_ERR_UNC_ECRC), FLAG(l, PCI_ERR_UNC_UNSUP), FLAG(l, PCI_ERR_UNC_ACS_VIOL));
   l = get_conf_long(d, where + PCI_ERR_COR_STATUS);
-  printf("\t\tCESta:\tRxErr%c BadTLP%c BadDLLP%c Rollover%c Timeout%c NonFatalErr%c\n",
+  printf("\t\tCESta:\tRxErr%c BadTLP%c BadDLLP%c Rollover%c Timeout%c AdvNonFatalErr%c\n",
 	FLAG(l, PCI_ERR_COR_RCVR), FLAG(l, PCI_ERR_COR_BAD_TLP), FLAG(l, PCI_ERR_COR_BAD_DLLP),
 	FLAG(l, PCI_ERR_COR_REP_ROLL), FLAG(l, PCI_ERR_COR_REP_TIMER), FLAG(l, PCI_ERR_COR_REP_ANFE));
   l = get_conf_long(d, where + PCI_ERR_COR_MASK);
-  printf("\t\tCEMsk:\tRxErr%c BadTLP%c BadDLLP%c Rollover%c Timeout%c NonFatalErr%c\n",
+  printf("\t\tCEMsk:\tRxErr%c BadTLP%c BadDLLP%c Rollover%c Timeout%c AdvNonFatalErr%c\n",
 	FLAG(l, PCI_ERR_COR_RCVR), FLAG(l, PCI_ERR_COR_BAD_TLP), FLAG(l, PCI_ERR_COR_BAD_DLLP),
 	FLAG(l, PCI_ERR_COR_REP_ROLL), FLAG(l, PCI_ERR_COR_REP_TIMER), FLAG(l, PCI_ERR_COR_REP_ANFE));
   l = get_conf_long(d, where + PCI_ERR_CAP);
-  printf("\t\tAERCap:\tFirst Error Pointer: %02x, GenCap%c CGenEn%c ChkCap%c ChkEn%c\n",
+  printf("\t\tAERCap:\tFirst Error Pointer: %02x, ECRCGenCap%c ECRCGenEn%c ECRCChkCap%c ECRCChkEn%c\n"
+	"\t\t\tMultHdrRecCap%c MultHdrRecEn%c TLPPfxPres%c HdrLogCap%c\n",
 	PCI_ERR_CAP_FEP(l), FLAG(l, PCI_ERR_CAP_ECRC_GENC), FLAG(l, PCI_ERR_CAP_ECRC_GENE),
-	FLAG(l, PCI_ERR_CAP_ECRC_CHKC), FLAG(l, PCI_ERR_CAP_ECRC_CHKE));
+	FLAG(l, PCI_ERR_CAP_ECRC_CHKC), FLAG(l, PCI_ERR_CAP_ECRC_CHKE),
+	FLAG(l, PCI_ERR_CAP_MULT_HDRC), FLAG(l, PCI_ERR_CAP_MULT_HDRE),
+	FLAG(l, PCI_ERR_CAP_TLP_PFX), FLAG(l, PCI_ERR_CAP_HDR_LOG));
 
+  l0 = get_conf_long(d, where + PCI_ERR_HEADER_LOG);
+  l1 = get_conf_long(d, where + PCI_ERR_HEADER_LOG + 4);
+  l2 = get_conf_long(d, where + PCI_ERR_HEADER_LOG + 8);
+  l3 = get_conf_long(d, where + PCI_ERR_HEADER_LOG + 12);
+  printf("\t\tHeaderLog: %08x %08x %08x %08x\n", l0, l1, l2, l3);
+
+  if (type == PCI_EXP_TYPE_ROOT_PORT || type == PCI_EXP_TYPE_ROOT_EC)
+    {
+      if (!config_fetch(d, where + PCI_ERR_ROOT_COMMAND, 12))
+        return;
+
+      l = get_conf_long(d, where + PCI_ERR_ROOT_COMMAND);
+      printf("\t\tRootCmd: CERptEn%c NFERptEn%c FERptEn%c\n",
+	    FLAG(l, PCI_ERR_ROOT_CMD_COR_EN),
+	    FLAG(l, PCI_ERR_ROOT_CMD_NONFATAL_EN),
+	    FLAG(l, PCI_ERR_ROOT_CMD_FATAL_EN));
+
+      l = get_conf_long(d, where + PCI_ERR_ROOT_STATUS);
+      printf("\t\tRootSta: CERcvd%c MultCERcvd%c UERcvd%c MultUERcvd%c\n"
+	    "\t\t\t FirstFatal%c NonFatalMsg%c FatalMsg%c IntMsg %d\n",
+	    FLAG(l, PCI_ERR_ROOT_COR_RCV),
+	    FLAG(l, PCI_ERR_ROOT_MULTI_COR_RCV),
+	    FLAG(l, PCI_ERR_ROOT_UNCOR_RCV),
+	    FLAG(l, PCI_ERR_ROOT_MULTI_UNCOR_RCV),
+	    FLAG(l, PCI_ERR_ROOT_FIRST_FATAL),
+	    FLAG(l, PCI_ERR_ROOT_NONFATAL_RCV),
+	    FLAG(l, PCI_ERR_ROOT_FATAL_RCV),
+	    PCI_ERR_MSG_NUM(l));
+
+      w = get_conf_word(d, where + PCI_ERR_ROOT_COR_SRC);
+      printf("\t\tErrorSrc: ERR_COR: %04x ", w);
+
+      w = get_conf_word(d, where + PCI_ERR_ROOT_SRC);
+      printf("ERR_FATAL/NONFATAL: %04x\n", w);
+    }
 }
 
 static void cap_dpc(struct device *d, int where)
@@ -358,6 +428,62 @@ cap_sriov(struct device *d, int where)
 }
 
 static void
+cap_multicast(struct device *d, int where, int type)
+{
+  u16 w;
+  u32 l;
+  u64 bar, rcv, block;
+
+  printf("Multicast\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_MCAST_CAP, 0x30))
+    return;
+
+  w = get_conf_word(d, where + PCI_MCAST_CAP);
+  printf("\t\tMcastCap: MaxGroups %d", PCI_MCAST_CAP_MAX_GROUP(w) + 1);
+  if (type == PCI_EXP_TYPE_ENDPOINT || type == PCI_EXP_TYPE_ROOT_INT_EP)
+    printf(", WindowSz %d (%d bytes)",
+      PCI_MCAST_CAP_WIN_SIZE(w), 1 << PCI_MCAST_CAP_WIN_SIZE(w));
+  if (type == PCI_EXP_TYPE_ROOT_PORT ||
+      type == PCI_EXP_TYPE_UPSTREAM || type == PCI_EXP_TYPE_DOWNSTREAM)
+    printf(", ECRCRegen%c\n", FLAG(w, PCI_MCAST_CAP_ECRC));
+  w = get_conf_word(d, where + PCI_MCAST_CTRL);
+  printf("\t\tMcastCtl: NumGroups %d, Enable%c\n",
+    PCI_MCAST_CTRL_NUM_GROUP(w) + 1, FLAG(w, PCI_MCAST_CTRL_ENABLE));
+  bar = get_conf_long(d, where + PCI_MCAST_BAR);
+  l = get_conf_long(d, where + PCI_MCAST_BAR + 4);
+  bar |= (u64) l << 32;
+  printf("\t\tMcastBAR: IndexPos %d, BaseAddr %016" PCI_U64_FMT_X "\n",
+    PCI_MCAST_BAR_INDEX_POS(bar), bar & PCI_MCAST_BAR_MASK);
+  rcv = get_conf_long(d, where + PCI_MCAST_RCV);
+  l = get_conf_long(d, where + PCI_MCAST_RCV + 4);
+  rcv |= (u64) l << 32;
+  printf("\t\tMcastReceiveVec:      %016" PCI_U64_FMT_X "\n", rcv);
+  block = get_conf_long(d, where + PCI_MCAST_BLOCK);
+  l = get_conf_long(d, where + PCI_MCAST_BLOCK + 4);
+  block |= (u64) l << 32;
+  printf("\t\tMcastBlockAllVec:     %016" PCI_U64_FMT_X "\n", block);
+  block = get_conf_long(d, where + PCI_MCAST_BLOCK_UNTRANS);
+  l = get_conf_long(d, where + PCI_MCAST_BLOCK_UNTRANS + 4);
+  block |= (u64) l << 32;
+  printf("\t\tMcastBlockUntransVec: %016" PCI_U64_FMT_X "\n", block);
+
+  if (type == PCI_EXP_TYPE_ENDPOINT || type == PCI_EXP_TYPE_ROOT_INT_EP)
+    return;
+  bar = get_conf_long(d, where + PCI_MCAST_OVL_BAR);
+  l = get_conf_long(d, where + PCI_MCAST_OVL_BAR + 4);
+  bar |= (u64) l << 32;
+  printf("\t\tMcastOverlayBAR: OverlaySize %d ", PCI_MCAST_OVL_SIZE(bar));
+  if (PCI_MCAST_OVL_SIZE(bar) >= 6)
+    printf("(%d bytes)", 1 << PCI_MCAST_OVL_SIZE(bar));
+  else
+    printf("(disabled)");
+  printf(", BaseAddr %016" PCI_U64_FMT_X "\n", bar & PCI_MCAST_OVL_MASK);
+}
+
+static void
 cap_vc(struct device *d, int where)
 {
   u32 cr1, cr2;
@@ -509,6 +635,57 @@ cap_rclink(struct device *d, int where)
 }
 
 static void
+cap_dvsec_cxl(struct device *d, int where)
+{
+  u16 l;
+
+  printf(": CXL\n");
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_CXL_CAP, 12))
+    return;
+
+  l = get_conf_word(d, where + PCI_CXL_CAP);
+  printf("\t\tCXLCap:\tCache%c IO%c Mem%c Mem HW Init%c HDMCount %d Viral%c\n",
+    FLAG(l, PCI_CXL_CAP_CACHE), FLAG(l, PCI_CXL_CAP_IO), FLAG(l, PCI_CXL_CAP_MEM),
+    FLAG(l, PCI_CXL_CAP_MEM_HWINIT), PCI_CXL_CAP_HDM_CNT(l), FLAG(l, PCI_CXL_CAP_VIRAL));
+
+  l = get_conf_word(d, where + PCI_CXL_CTRL);
+  printf("\t\tCXLCtl:\tCache%c IO%c Mem%c Cache SF Cov %d Cache SF Gran %d Cache Clean%c Viral%c\n",
+    FLAG(l, PCI_CXL_CTRL_CACHE), FLAG(l, PCI_CXL_CTRL_IO), FLAG(l, PCI_CXL_CTRL_MEM),
+    PCI_CXL_CTRL_CACHE_SF_COV(l), PCI_CXL_CTRL_CACHE_SF_GRAN(l), FLAG(l, PCI_CXL_CTRL_CACHE_CLN),
+    FLAG(l, PCI_CXL_CTRL_VIRAL));
+
+  l = get_conf_word(d, where + PCI_CXL_STATUS);
+  printf("\t\tCXLSta:\tViral%c\n", FLAG(l, PCI_CXL_STATUS_VIRAL));
+}
+
+static void
+cap_dvsec(struct device *d, int where)
+{
+  printf("Designated Vendor-Specific: ");
+  if (!config_fetch(d, where + PCI_DVSEC_HEADER1, 8))
+    {
+      printf("<unreadable>\n");
+      return;
+    }
+
+  u32 hdr = get_conf_long(d, where + PCI_DVSEC_HEADER1);
+  u16 vendor = BITS(hdr, 0, 16);
+  byte rev = BITS(hdr, 16, 4);
+  u16 len = BITS(hdr, 20, 12);
+
+  u16 id = get_conf_long(d, where + PCI_DVSEC_HEADER2);
+
+  printf("Vendor=%04x ID=%04x Rev=%d Len=%d", vendor, id, rev, len);
+  if (vendor == PCI_DVSEC_VENDOR_ID_CXL && id == PCI_DVSEC_ID_CXL && len >= 16)
+    cap_dvsec_cxl(d, where);
+  else
+    printf(" <?>\n");
+}
+
+static void
 cap_evendor(struct device *d, int where)
 {
   u32 hdr;
@@ -585,17 +762,19 @@ cap_l1pm(struct device *d, int where)
     FLAG(val, PCI_L1PM_SUBSTAT_CTL1_ASPM_L11));
 
   if (l1_cap & PCI_L1PM_SUBSTAT_CAP_PM_L12 || l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
-    printf("\t\t\t   T_CommonMode=%dus", BITS(val, 8, 8));
-
-  if (l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
     {
-      scale = BITS(val, 29, 3);
-      if (scale > 5)
-	printf(" LTR1.2_Threshold=<error>");
-      else
-	printf(" LTR1.2_Threshold=%lldns", BITS(val, 16, 10) * (unsigned long long) cap_ltr_scale(scale));
+      printf("\t\t\t   T_CommonMode=%dus", BITS(val, 8, 8));
+
+      if (l1_cap & PCI_L1PM_SUBSTAT_CAP_ASPM_L12)
+	{
+	  scale = BITS(val, 29, 3);
+	  if (scale > 5)
+	    printf(" LTR1.2_Threshold=<error>");
+	  else
+	    printf(" LTR1.2_Threshold=%lldns", BITS(val, 16, 10) * (unsigned long long) cap_ltr_scale(scale));
+	}
+      printf("\n");
     }
-  printf("\n");
 
   val = get_conf_long(d, where + PCI_L1PM_SUBSTAT_CTL2);
   printf("\t\tL1SubCtl2:");
@@ -669,8 +848,97 @@ cap_ptm(struct device *d, int where)
     }
 }
 
+static void
+print_rebar_range_size(int ld2_size)
+{
+  // This function prints the input as a power-of-2 size value
+  // It is biased with 1MB = 0, ...
+  // Maximum resizable BAR value supported is 2^63 bytes = 43
+  // for the extended resizable BAR capability definition
+  // (otherwise it would stop at 2^28)
+
+  if (ld2_size >= 0 && ld2_size < 10)
+    printf(" %dMB", (1 << ld2_size));
+  else if (ld2_size >= 10 && ld2_size < 20)
+    printf(" %dGB", (1 << (ld2_size-10)));
+  else if (ld2_size >= 20 && ld2_size < 30)
+    printf(" %dTB", (1 << (ld2_size-20)));
+  else if (ld2_size >= 30 && ld2_size < 40)
+    printf(" %dPB", (1 << (ld2_size-30)));
+  else if (ld2_size >= 40 && ld2_size < 44)
+    printf(" %dEB", (1 << (ld2_size-40)));
+  else
+    printf(" <unknown>");
+}
+
+static void
+cap_rebar(struct device *d, int where, int virtual)
+{
+  u32 sizes_buffer, control_buffer, ext_sizes, current_size;
+  u16 bar_index, barcount, i;
+  // If the structure exists, at least one bar is defined
+  u16 num_bars = 1;
+
+  printf("%s Resizable BAR\n", (virtual) ? "Virtual" : "Physical");
+
+  if (verbose < 2)
+    return;
+
+  // Go through all defined BAR definitions of the caps, at minimum 1
+  // (loop also terminates if num_bars read from caps is > 6)
+  for (barcount = 0; barcount < num_bars; barcount++)
+    {
+      where += 4;
+
+      // Get the next BAR configuration
+      if (!config_fetch(d, where, 8))
+        {
+          printf("\t\t<unreadable>\n");
+          return;
+        }
+
+      sizes_buffer = get_conf_long(d, where) >> 4;
+      where += 4;
+      control_buffer = get_conf_long(d, where);
+
+      bar_index  = BITS(control_buffer, 0, 3);
+      current_size = BITS(control_buffer, 8, 6);
+      ext_sizes = BITS(control_buffer, 16, 16);
+
+      if (barcount == 0)
+        {
+          // Only index 0 controlreg has the num_bar count definition
+          num_bars = BITS(control_buffer, 5, 3);
+	  if (num_bars < 1 || num_bars > 6)
+	    {
+	      printf("\t\t<error in resizable BAR: num_bars=%d is out of specification>\n", num_bars);
+	      break;
+	    }
+        }
+
+      // Resizable BAR list entry have an arbitrary index and current size
+      printf("\t\tBAR %d: current size:", bar_index);
+      print_rebar_range_size(current_size);
+
+      if (sizes_buffer || ext_sizes)
+	{
+	  printf(", supported:");
+
+	  for (i=0; i<28; i++)
+	    if (sizes_buffer & (1U << i))
+	      print_rebar_range_size(i);
+
+	  for (i=0; i<16; i++)
+	    if (ext_sizes & (1U << i))
+	      print_rebar_range_size(i + 28);
+	}
+
+      printf("\n");
+    }
+}
+
 void
-show_ext_caps(struct device *d)
+show_ext_caps(struct device *d, int type)
 {
   int where = 0x100;
   char been_there[0x1000];
@@ -698,8 +966,11 @@ show_ext_caps(struct device *d)
 	}
       switch (id)
 	{
+	  case PCI_EXT_CAP_ID_NULL:
+	    printf("Null\n");
+	    break;
 	  case PCI_EXT_CAP_ID_AER:
-	    cap_aer(d, where);
+	    cap_aer(d, where, type);
 	    break;
 	  case PCI_EXT_CAP_ID_DPC:
 	    cap_dpc(d, where);
@@ -726,8 +997,8 @@ show_ext_caps(struct device *d)
 	  case PCI_EXT_CAP_ID_MFVC:
 	    printf("Multi-Function Virtual Channel <?>\n");
 	    break;
-	  case PCI_EXT_CAP_ID_RBCB:
-	    printf("Root Bridge Control Block <?>\n");
+	  case PCI_EXT_CAP_ID_RCRB:
+	    printf("Root Complex Register Block <?>\n");
 	    break;
 	  case PCI_EXT_CAP_ID_VNDR:
 	    cap_evendor(d, where);
@@ -744,8 +1015,20 @@ show_ext_caps(struct device *d)
 	  case PCI_EXT_CAP_ID_SRIOV:
 	    cap_sriov(d, where);
 	    break;
+	  case PCI_EXT_CAP_ID_MRIOV:
+	    printf("Multi-Root I/O Virtualization <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_MCAST:
+	    cap_multicast(d, where, type);
+	    break;
 	  case PCI_EXT_CAP_ID_PRI:
 	    cap_pri(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_REBAR:
+	    cap_rebar(d, where, 0);
+	    break;
+	  case PCI_EXT_CAP_ID_DPA:
+	    printf("Dynamic Power Allocation <?>\n");
 	    break;
 	  case PCI_EXT_CAP_ID_TPH:
 	    cap_tph(d, where);
@@ -753,8 +1036,17 @@ show_ext_caps(struct device *d)
 	  case PCI_EXT_CAP_ID_LTR:
 	    cap_ltr(d, where);
 	    break;
+	  case PCI_EXT_CAP_ID_SECPCI:
+	    cap_sec(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_PMUX:
+	    printf("Protocol Multiplexing <?>\n");
+	    break;
 	  case PCI_EXT_CAP_ID_PASID:
 	    cap_pasid(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_LNR:
+	    printf("LN Requester <?>\n");
 	    break;
 	  case PCI_EXT_CAP_ID_L1PM:
 	    cap_l1pm(d, where);
@@ -762,8 +1054,38 @@ show_ext_caps(struct device *d)
 	  case PCI_EXT_CAP_ID_PTM:
 	    cap_ptm(d, where);
 	    break;
+	  case PCI_EXT_CAP_ID_M_PCIE:
+	    printf("PCI Express over M_PHY <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_FRS:
+	    printf("FRS Queueing <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_RTR:
+	    printf("Readiness Time Reporting <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_DVSEC:
+	    cap_dvsec(d, where);
+	    break;
+	  case PCI_EXT_CAP_ID_VF_REBAR:
+	    cap_rebar(d, where, 1);
+	    break;
+	  case PCI_EXT_CAP_ID_DLNK:
+	    printf("Data Link Feature <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_16GT:
+	    printf("Physical Layer 16.0 GT/s <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_LMR:
+	    printf("Lane Margining at the Receiver <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_HIER_ID:
+	    printf("Hierarchy ID <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_NPEM:
+	    printf("Native PCIe Enclosure Management <?>\n");
+	    break;
 	  default:
-	    printf("#%02x\n", id);
+	    printf("Extended Capability ID %#02x\n", id);
 	    break;
 	}
       where = (header >> 20) & ~3;
