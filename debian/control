@@ -7,7 +7,7 @@ XSBC-Pexip-Original-Uploaders: Matt Taggart <taggart@debian.org>
 Build-Depends: dpkg-dev (>= 1.16.1~), debhelper (>= 9), zlib1g-dev, libkmod-dev [linux-any], libudev-dev (>= 196) [linux-any], pkg-config
 Standards-Version: 3.9.8
 Homepage: http://atrey.karlin.mff.cuni.cz/~mj/pciutils.shtml
-XS-Pexip-Upstream: http://ftp.debian.org/debian/ stretch
+XS-Pexip-Upstream: http://ftp.debian.org/debian/ buster
 
 Package: pciutils
 Architecture: any
