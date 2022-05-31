@@ -1,7 +1,7 @@
 Name:		pciutils
-Version:	3.5.2
+Version:	3.7.0
 Release: 	1
-Source:		ftp://atrey.karlin.mff.cuni.cz/pub/linux/pci/%{name}-%{version}.tar.gz
+Source:		http://mj.ucw.cz/download/linux/pci/%{name}-%{version}.tar.gz
 Copyright:	GNU GPL
 Buildroot: 	/tmp/%{name}-%{version}-root
 ExclusiveOS: 	Linux

@@ -1,7 +1,7 @@
 /*
  *	The PCI Utilities -- Common Functions
  *
- *	Copyright (c) 1997--2008 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2016 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -27,25 +27,25 @@ die(char *msg, ...)
 }
 
 void *
-xmalloc(unsigned int howmuch)
+xmalloc(size_t howmuch)
 {
   void *p = malloc(howmuch);
   if (!p)
-    die("Unable to allocate %d bytes of memory", howmuch);
+    die("Unable to allocate %d bytes of memory", (int) howmuch);
   return p;
 }
 
 void *
-xrealloc(void *ptr, unsigned int howmuch)
+xrealloc(void *ptr, size_t howmuch)
 {
   void *p = realloc(ptr, howmuch);
   if (!p)
-    die("Unable to allocate %d bytes of memory", howmuch);
+    die("Unable to allocate %d bytes of memory", (int) howmuch);
   return p;
 }
 
 char *
-xstrdup(char *str)
+xstrdup(const char *str)
 {
   int len = strlen(str) + 1;
   char *copy = xmalloc(len);
@@ -99,34 +99,34 @@ set_pci_option(struct pci_access *pacc, char *arg)
 }
 
 int
-parse_generic_option(int i, struct pci_access *pacc, char *optarg)
+parse_generic_option(int i, struct pci_access *pacc, char *arg)
 {
   switch (i)
     {
 #ifdef PCI_HAVE_PM_INTEL_CONF
     case 'H':
-      if (!strcmp(optarg, "1"))
+      if (!strcmp(arg, "1"))
 	pacc->method = PCI_ACCESS_I386_TYPE1;
-      else if (!strcmp(optarg, "2"))
+      else if (!strcmp(arg, "2"))
 	pacc->method = PCI_ACCESS_I386_TYPE2;
       else
-	die("Unknown hardware configuration type %s", optarg);
+	die("Unknown hardware configuration type %s", arg);
       break;
 #endif
 #ifdef PCI_HAVE_PM_DUMP
     case 'F':
-      pci_set_param(pacc, "dump.name", optarg);
+      pci_set_param(pacc, "dump.name", arg);
       pacc->method = PCI_ACCESS_DUMP;
       break;
 #endif
     case 'A':
-      set_pci_method(pacc, optarg);
+      set_pci_method(pacc, arg);
       break;
     case 'G':
       pacc->debugging++;
       break;
     case 'O':
-      set_pci_option(pacc, optarg);
+      set_pci_option(pacc, arg);
       break;
     default:
       return 0;

@@ -1,3 +1,183 @@
+2020-05-31  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.7.0.
+
+	* Added or improved the following capabilities: Designated Vendor-Specific,
+	  Compute eXpress Link, Resizable BARs, VF Resizable BARs, Link
+	  Capabilities 2, Link Status 2.
+
+	* On Linux, lspci can show IOMMU groups.
+
+	* setpci can be asked to skip bus scan and operate on a device
+	  completely specified by its domain/bus/dev/func address. This
+	  involved major internal cleanup.
+
+	* The above feature of setpci uses the pci_get_dev() function,
+	  which obtains a struct pci_dev without doing a bus scan. This was
+	  always possible, but apparently little used, because back-ends
+	  frequently choked when operating on such devices. Fixed a lot
+	  of minor bugs related to this.
+
+	* Also, back-ends which do not support domains now correctly fail when
+	  trying to access devices outside domain 0.
+
+	* Semantics of pci_fill_info() and pci_dev->known_fields was underspecified,
+	  which lead to inconsistencies between back-ends. Improved documentation
+	  to give a more precise definition and updated all back-ends to conform
+	  to it. Most importantly, pci_dev->known_fields shows all fields requested
+	  over the lifetime of the pci_dev, but never those which are not supported
+	  by the back-end.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2020-01-25  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.6.4.
+
+	* A new back-end for the GNU Hurd was contributed by Joan Lledó.
+
+	* When printing VPD item identifiers, non-ASCII characters are escaped.
+
+2020-01-22  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.6.3.
+
+	* `lspci -t' (tree mode) can be combined with `-s' to show a sub-tree.
+	  We also fixed potential buffer overflows in the tree dumper.
+
+	* Cleaned messy code for dumping of I/O, memory, and ROM regions.
+	  This helped fixing a bug, which caused some 64-bit regions to be
+	  reported as virtual. All flags are now printed after the address
+	  (previously, "[virtual]" and "[enhanced]" were before it for no good
+	  reason).
+
+	* Added pci_find_cap_nr() to the library, which handles capabilities
+	  which occur multiple times in a single device.
+
+	* Minor improvements in printing of PCIe capabilities.
+
+	* We now decode the Multicast and Secondary PCI Express extended
+	  capabilities.
+
+	* The list of capability names available to setpci was updated.
+
+	* Minor bugs were fixed in FreeBSD and Solaris ports.
+
+	* We now prefer HTTPS URLs in all documentation
+
+	* The pci.ids file has a man page.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2018-08-12  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.6.2.
+
+	* Added "-P" and "-PP" switches to lspci, which display the path
+	  through bridges to each device.
+
+	* Fixed a couple of bugs in computation of bus topology. It was
+	  previously used only for the tree display, but we re-use it for
+	  computing the paths.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2018-07-12  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.6.1.
+
+	* Fixed compilation issues on Linux systems with MUSL libc.
+
+2018-06-30  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.6.0.
+
+	* BARs reported by the OS, but not set on the device itself are
+	  reliably marked with "[virtual]".
+
+	* Library: Introduced a generic mechanism of string properties. This
+	  avoids lots of special cases and makes ABI compatibility easier.
+
+	* On Linux systems with OpenFirmware, report corresponding device tree nodes
+	  as device properties.
+
+	* VPD decoder knows several non-standard extensions.
+
+	* When PCIe link speed is less than the maximum supported by the
+	  device, it is explicitly marked as "downgraded".
+
+	* Several new capabilities are not decoded yet, but at least their
+	  names are printed.
+
+	* The Null capability is easily decoded.
+
+	* Formatting of several capabilities was cleaned up.
+
+	* The VGA16 bit in the bridge control register is now supported.
+
+	* Added a port to SylixOS. Thanks to YuJian Gong for contribution.
+
+	* Added a port to DOS/DJGPP. Thanks to Rudolf Marek for contribution.
+
+	* The order in which back-ends are probed was decoupled from the
+	  internal back-end IDs. This helps, because new back-ends must have
+	  their ID allocated at the end to keep the ABI, but they might need
+	  to be probed earlier.
+
+	* The fbsd-device back-end should work again.
+
+	* Fixed a couple of bugs. Most notably, DeviceName was not printed.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2017-11-17  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.6.
+
+	* Improvements of the FreeBSD back-end: read-only access for non-root,
+	  support DragonFly BSD, support extended config space.
+
+	* MN VPD keyword is decoded correctly.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2017-07-05  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.5.
+
+	* Better decoding of AER capability.
+
+	* "Slot Implemented" flag is decoded for PCI/PCI-X to PCIe bridges.
+
+	* Minor fixes of decoding other capabilities.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2017-02-25  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.4.
+
+	* Previous version broke compilation on systems, for which lib/types.h
+	  did not provide a 64-bit integer type. It is provided everywhere now.
+
+2017-02-15  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.5.3.
+
+	* When lspci looks for Linux kernel modules, it uses the default
+	  path to module directory provided by libkmod. Previously,
+	  it tried to construct the path explicitly, which need not
+	  work on all systems.
+
+	* Improved formatting of memory and I/O ranges behind a bridge.
+
+	* PCIe link capabilities now display GEN4 speed (16GT/s).
+
+	* PCIe device capabilities now show bits related to atomic operations.
+	  Thanks to Satanand Burla for a patch.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
 2016-10-03  Martin Mares <mj@ucw.cz>
 
 	* Released as 3.5.2.

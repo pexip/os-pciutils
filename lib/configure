@@ -6,12 +6,7 @@ LC_ALL=C
 export LC_ALL
 
 echo_n() {
-	if [ -n "$BASH" ]
-	then
-		echo -n "$*"
-	else
-		echo "$*\c"
-	fi
+	printf '%s' "$*"
 }
 
 if [ -z "$VERSION" -o -z "$IDSDIR" ] ; then
@@ -121,11 +116,17 @@ case $sys in
 		echo_n " nbsd-libpci"
 		echo >>$c '#define PCI_HAVE_PM_NBSD_LIBPCI'
 		echo >>$c '#define PCI_PATH_NBSD_DEVICE "/dev/pci0"'
+		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
 		echo >>$m 'LIBNAME=libpciutils'
 		echo >>$m 'WITH_LIBS+=-lpci'
 		LIBRESOLV=
 		;;
-    	gnu)
+	gnu)
+		echo_n " hurd i386-ports"
+		echo >>$c '#define PCI_HAVE_PM_HURD_CONF'
+		echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
+		;;
+	djgpp)
 		echo_n " i386-ports"
 		echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
 		;;
@@ -141,6 +142,13 @@ case $sys in
 						;;
 		esac
 		echo >>$c '#define PCI_HAVE_STDINT_H'
+		;;
+	sylixos)
+		echo >>$c '#define PCI_PATH_SYLIXOS_DEVICE "/proc/pci"'
+		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
+		echo >>$c '#define PCI_HAVE_PM_SYLIXOS_DEVICE'
+		IDSDIR="/etc/pci"
+		LIBRESOLV=
 		;;
 	*)
 		echo " Unfortunately, your OS is not supported by the PCI Library"
