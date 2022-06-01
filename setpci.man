@@ -45,6 +45,13 @@ to verify that your complex sequence of
 .B setpci
 operations does what you think it should do.
 .TP
+.B -r
+Avoids bus scan if each operation selects a specific device (uses the
+.B -s
+selector with specific domain, bus, slot, and function). This is faster,
+but if the device does not exist, it fails instead of matching an empty
+set of devices.
+.TP
 .B --version
 Show
 .I setpci
@@ -148,9 +155,12 @@ Each of the previous formats can be followed by \fB+offset\fP to add an offset
 (a hex number) to the address. This feature can be useful for addressing of registers
 living within a capability, or to modify parts of standard registers.
 .IP \(bu
-Finally, you should append a width specifier \fB.B\fP, \fB.W\fP, or \fB.L\fP to choose
-how many bytes (1, 2, or 4) should be transferred. The width can be omitted if you are
+To choose how many bytes (1, 2, or 4) should be transferred, you should append a width
+specifier \fB.B\fP, \fB.W\fP, or \fB.L\fP. The width can be omitted if you are
 referring to a register by its name and the width of the register is well known.
+.IP \(bu
+Finally, if a capability exists multiple times you can choose which one to target using
+\fB@number\fP. Indexing starts at 0.
 
 .PP
 All names of registers and width specifiers are case-insensitive.

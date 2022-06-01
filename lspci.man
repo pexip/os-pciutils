@@ -95,6 +95,13 @@ PCI bus instead of as seen by the kernel.
 .B -D
 Always show PCI domain numbers. By default, lspci suppresses them on machines which
 have only domain 0.
+.TP
+.B -P
+Identify PCI devices by path through each bridge, instead of by bus number.
+.TP
+.B -PP
+Identify PCI devices by path through each bridge, showing the bus number as
+well as the device number.
 
 .SS Options to control resolving ID's to names
 .TP
@@ -303,11 +310,15 @@ Kernel driver currently handling the device (optional, Linux only).
 .TP
 .B Module
 Kernel module reporting that it is capable of handling the device
-(optional, Linux only).
+(optional, Linux only). Multiple lines with this tag can occur.
 
 .TP
 .B NUMANode
 NUMA node this device is connected to (optional, Linux only).
+
+.TP
+.B IOMMUGroup
+IOMMU group that this device is part of (optional, Linux only).
 
 .P
 New tags can be added in future versions, so you should silently ignore any tags you don't recognize.
@@ -325,7 +336,7 @@ in a single record. Please avoid using this format in any new code.
 .TP
 .B @IDSDIR@/pci.ids
 A list of all known PCI ID's (vendors, devices, classes and subclasses). Maintained
-at http://pciids.sourceforge.net/, use the
+at https://pci-ids.ucw.cz/, use the
 .B update-pciids
 utility to download the most recent version.
 .TP
@@ -350,6 +361,7 @@ back-end.
 
 .SH SEE ALSO
 .BR setpci (8),
+.BR pci.ids (5),
 .BR update-pciids (8),
 .BR pcilib (7)
 

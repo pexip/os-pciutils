@@ -1,7 +1,7 @@
 /*
  *	The PCI Library -- System-Dependent Stuff
  *
- *	Copyright (c) 1997--2004 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -9,9 +9,11 @@
 #ifdef __GNUC__
 #define UNUSED __attribute__((unused))
 #define NONRET __attribute__((noreturn))
+#define FORMAT_CHECK(x,y,z) __attribute__((format(x,y,z)))
 #else
 #define UNUSED
 #define NONRET
+#define FORMAT_CHECK(x,y,z)
 #define inline
 #endif
 
@@ -66,6 +68,20 @@ typedef u16 word;
   #define BYTE_ORDER LITTLE_ENDIAN
   #define snprintf _snprintf
 #endif
+#endif
+
+#ifdef PCI_OS_SYLIXOS
+#include <endian.h>
+#endif
+
+#ifdef PCI_OS_DJGPP
+  #define BIG_ENDIAN 4321
+  #define LITTLE_ENDIAN	1234
+  #define BYTE_ORDER LITTLE_ENDIAN
+#endif
+
+#if !defined(BYTE_ORDER)
+#error "BYTE_ORDER not defined for your platform"
 #endif
 
 #if BYTE_ORDER == BIG_ENDIAN
