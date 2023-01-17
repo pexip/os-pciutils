@@ -2,7 +2,7 @@
 
 #export DH_VERBOSE=1
 
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all future=+lfs
 
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
@@ -41,11 +41,16 @@ override_dh_auto_build:
 override_dh_auto_install:
 	dh_auto_install -- $(confflags) install-lib
 
+ifeq (,$(filter noudeb,$(DEB_BUILD_PROFILES)))
 	# pciutils-udeb
 	# Reduce by removing subsystem ids and comments.
 	cat /usr/share/misc/pci.ids | \
 	  perl -ne 'print unless /^(\s*#|\s*$|\t\t)/' | \
 	  gzip -9n >debian/pciutils-udeb/usr/share/misc/pci.ids.gz
+endif
 
 override_dh_makeshlibs:
 	dh_makeshlibs -a -V 'libpci3 (>= 1:3.5.2-1)'
+
+override_dh_installchangelogs:
+	dh_installchangelogs --no-trim

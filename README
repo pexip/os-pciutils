@@ -1,10 +1,13 @@
-This package contains the PCI Utilities, version 3.7.0.
+This package contains the PCI Utilities, version 3.9.0.
 
-Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
+Copyright (c) 1997--2022 Martin Mares <mj@ucw.cz>
 
 All files in this package can be freely distributed and used according
 to the terms of the GNU General Public License, either version 2 or
 (at your opinion) any newer version. See https://www.gnu.org/ for details.
+
+The author wants to clarify that he does not consider programs which link
+dynamically to the libpci to be derived works of the library.
 
 
 1. What's that?
@@ -22,7 +25,7 @@ In runs on the following systems:
 	Solaris/i386	(direct port access)
 	Aix		(via /dev/pci and odmget)
 	GNU Hurd	(direct port access)
-	Windows		(direct port access, see README.Windows for caveats)
+	Windows		(via cfgmgr32 or direct port access, see README.Windows for caveats)
 	CYGWIN		(direct port access)
 	BeOS		(via syscalls)
 	Haiku		(via /dev/misc/poke)
@@ -49,7 +52,8 @@ The utilities include:  (See manual pages for more details)
 2. Compiling and (un)installing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Just run "make" to compile the package and then "make install" to install it.
-Please note that GNU make is needed on most platforms.
+Please note that a C compiler supporting the C99 standard is required.
+Also, GNU make is needed on most platforms.
 
 If you want to change the default installation location, please override
 the PREFIX variable specified in the Makefile -- e.g., you can use

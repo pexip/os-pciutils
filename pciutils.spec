@@ -1,5 +1,5 @@
 Name:		pciutils
-Version:	3.7.0
+Version:	3.9.0
 Release: 	1
 Source:		http://mj.ucw.cz/download/linux/pci/%{name}-%{version}.tar.gz
 Copyright:	GNU GPL

@@ -13,6 +13,10 @@
 
 #include "internal.h"
 
+#ifdef PCI_OS_WINDOWS
+#include <windows.h>
+#endif
+
 static struct pci_methods *pci_methods[PCI_ACCESS_MAX] = {
   NULL,
 #ifdef PCI_HAVE_PM_LINUX_SYSFS
@@ -72,6 +76,28 @@ static struct pci_methods *pci_methods[PCI_ACCESS_MAX] = {
 #else
   NULL,
 #endif
+#ifdef PCI_HAVE_PM_WIN32_CFGMGR32
+  &pm_win32_cfgmgr32,
+#else
+  NULL,
+#endif
+#ifdef PCI_HAVE_PM_WIN32_KLDBG
+  &pm_win32_kldbg,
+#else
+  NULL,
+#endif
+#ifdef PCI_HAVE_PM_WIN32_SYSDBG
+  &pm_win32_sysdbg,
+#else
+  NULL,
+#endif
+#ifdef PCI_HAVE_PM_MMIO_CONF
+  &pm_mmio_conf1,
+  &pm_mmio_conf1_ext,
+#else
+  NULL,
+  NULL,
+#endif
 };
 
 // If PCI_ACCESS_AUTO is selected, we probe the access methods in this order
@@ -86,39 +112,18 @@ static int probe_sequence[] = {
   PCI_ACCESS_DARWIN,
   PCI_ACCESS_SYLIXOS_DEVICE,
   PCI_ACCESS_HURD,
+  PCI_ACCESS_WIN32_CFGMGR32,
+  PCI_ACCESS_WIN32_KLDBG,
+  PCI_ACCESS_WIN32_SYSDBG,
   // Low-level methods poking the hardware directly
   PCI_ACCESS_I386_TYPE1,
   PCI_ACCESS_I386_TYPE2,
+  PCI_ACCESS_MMIO_TYPE1_EXT,
+  PCI_ACCESS_MMIO_TYPE1,
   -1,
 };
 
-void *
-pci_malloc(struct pci_access *a, int size)
-{
-  void *x = malloc(size);
-
-  if (!x)
-    a->error("Out of memory (allocation of %d bytes failed)", size);
-  return x;
-}
-
-void
-pci_mfree(void *x)
-{
-  if (x)
-    free(x);
-}
-
-char *
-pci_strdup(struct pci_access *a, const char *s)
-{
-  int len = strlen(s) + 1;
-  char *t = pci_malloc(a, len);
-  memcpy(t, s, len);
-  return t;
-}
-
-static void
+static void PCI_NONRET
 pci_generic_error(char *msg, ...)
 {
   va_list args;
@@ -158,6 +163,34 @@ pci_null_debug(char *msg UNUSED, ...)
 {
 }
 
+// Memory allocation functions are safe to call if pci_access is not fully initalized or even NULL
+
+void *
+pci_malloc(struct pci_access *a, int size)
+{
+  void *x = malloc(size);
+
+  if (!x)
+    (a && a->error ? a->error : pci_generic_error)("Out of memory (allocation of %d bytes failed)", size);
+  return x;
+}
+
+void
+pci_mfree(void *x)
+{
+  if (x)
+    free(x);
+}
+
+char *
+pci_strdup(struct pci_access *a, const char *s)
+{
+  int len = strlen(s) + 1;
+  char *t = pci_malloc(a, len);
+  memcpy(t, s, len);
+  return t;
+}
+
 int
 pci_lookup_method(char *name)
 {
@@ -180,14 +213,52 @@ pci_get_method_name(int index)
     return pci_methods[index]->name;
 }
 
+#ifdef PCI_OS_WINDOWS
+
+static void
+pci_init_name_list_path(struct pci_access *a)
+{
+  if ((PCI_PATH_IDS_DIR)[0])
+    pci_set_name_list_path(a, PCI_PATH_IDS_DIR "\\" PCI_IDS, 0);
+  else
+    {
+      char *path, *sep;
+      DWORD len;
+
+      path = pci_malloc(a, MAX_PATH+1);
+      len = GetModuleFileNameA(NULL, path, MAX_PATH+1);
+      sep = (len > 0) ? strrchr(path, '\\') : NULL;
+      if (len == 0 || len == MAX_PATH+1 || !sep || MAX_PATH-(size_t)(sep+1-path) < sizeof(PCI_IDS))
+        {
+          free(path);
+          pci_set_name_list_path(a, PCI_IDS, 0);
+        }
+      else
+        {
+          memcpy(sep+1, PCI_IDS, sizeof(PCI_IDS));
+          pci_set_name_list_path(a, path, 1);
+        }
+    }
+}
+
+#else
+
+static void
+pci_init_name_list_path(struct pci_access *a)
+{
+  pci_set_name_list_path(a, PCI_PATH_IDS_DIR "/" PCI_IDS, 0);
+}
+
+#endif
+
 struct pci_access *
 pci_alloc(void)
 {
-  struct pci_access *a = malloc(sizeof(struct pci_access));
+  struct pci_access *a = pci_malloc(NULL, sizeof(struct pci_access));
   int i;
 
   memset(a, 0, sizeof(*a));
-  pci_set_name_list_path(a, PCI_PATH_IDS_DIR "/" PCI_IDS, 0);
+  pci_init_name_list_path(a);
 #ifdef PCI_USE_DNS
   pci_define_param(a, "net.domain", PCI_ID_DOMAIN, "DNS domain used for resolving of ID's");
   pci_define_param(a, "net.cache_name", "~/.pciids-cache", "Name of the ID cache file");

@@ -1,0 +1,2 @@
+# Yes, lintian, we know.
+superficial-tests [debian/tests/control]

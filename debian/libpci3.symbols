@@ -8,6 +8,7 @@ libpci.so.3 libpci3 #MINVER#
  LIBPCI_3.5@LIBPCI_3.5 1:3.5.0
  LIBPCI_3.6@LIBPCI_3.6 1:3.6.0
  LIBPCI_3.7@LIBPCI_3.7 1:3.6.2
+ LIBPCI_3.8@LIBPCI_3.8 1:3.8.0
  pci_alloc@LIBPCI_3.0 1:3.0.0.
  pci_cleanup@LIBPCI_3.0 1:3.0.0
  pci_fill_info@LIBPCI_3.0 1:3.0.0
@@ -16,14 +17,19 @@ libpci.so.3 libpci3 #MINVER#
  pci_fill_info@LIBPCI_3.3 1:3.3.0
  pci_fill_info@LIBPCI_3.4 1:3.4.0
  pci_fill_info@LIBPCI_3.5 1:3.5.0
+ pci_fill_info@LIBPCI_3.8 1:3.8.0
  pci_filter_init@LIBPCI_3.0 1:3.0.0
  pci_filter_init@LIBPCI_3.3 1:3.3.0
+ pci_filter_init@LIBPCI_3.8 1:3.8.0
  pci_filter_match@LIBPCI_3.0 1:3.0.0
  pci_filter_match@LIBPCI_3.3 1:3.3.0
+ pci_filter_match@LIBPCI_3.8 1:3.8.0
  pci_filter_parse_id@LIBPCI_3.0 1:3.0.0
  pci_filter_parse_id@LIBPCI_3.3 1:3.3.0
+ pci_filter_parse_id@LIBPCI_3.8 1:3.8.0
  pci_filter_parse_slot@LIBPCI_3.0 1:3.0.0
  pci_filter_parse_slot@LIBPCI_3.3 1:3.3.0
+ pci_filter_parse_slot@LIBPCI_3.8 1:3.8.0
  pci_find_cap@LIBPCI_3.1 1:3.1.0
  pci_find_cap_nr@LIBPCI_3.7 1:3.6.3
  pci_free_dev@LIBPCI_3.0 1:3.0.0
