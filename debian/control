@@ -15,7 +15,7 @@ Standards-Version: 4.5.1
 Homepage: https://mj.ucw.cz/sw/pciutils/
 Vcs-Browser: https://git.hadrons.org/cgit/debian/pkgs/pciutils.git
 Vcs-Git: https://git.hadrons.org/git/debian/pkgs/pciutils.git
-XS-Pexip-Upstream: http://deb.debian.org/debian/ bullseye
+XS-Pexip-Upstream: http://deb.debian.org/debian/ bookworm
 
 Package: pciutils
 Priority: standard
