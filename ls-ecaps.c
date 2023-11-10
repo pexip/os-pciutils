@@ -1,7 +1,7 @@
 /*
  *	The PCI Utilities -- Show Extended Capabilities
  *
- *	Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2022 Martin Mares <mj@ucw.cz>
  *
  *	Can be freely distributed and used under the terms of the GNU GPL.
  */
@@ -67,13 +67,13 @@ cap_ltr(struct device *d, int where)
 
   snoop = get_conf_word(d, where + PCI_LTR_MAX_SNOOP);
   scale = cap_ltr_scale((snoop >> PCI_LTR_SCALE_SHIFT) & PCI_LTR_SCALE_MASK);
-  printf("\t\tMax snoop latency: %lldns\n",
-	 ((unsigned long long)snoop & PCI_LTR_VALUE_MASK) * scale);
+  printf("\t\tMax snoop latency: %" PCI_U64_FMT_U "ns\n",
+	 ((u64)snoop & PCI_LTR_VALUE_MASK) * scale);
 
   nosnoop = get_conf_word(d, where + PCI_LTR_MAX_NOSNOOP);
   scale = cap_ltr_scale((nosnoop >> PCI_LTR_SCALE_SHIFT) & PCI_LTR_SCALE_MASK);
-  printf("\t\tMax no snoop latency: %lldns\n",
-	 ((unsigned long long)nosnoop & PCI_LTR_VALUE_MASK) * scale);
+  printf("\t\tMax no snoop latency: %" PCI_U64_FMT_U "ns\n",
+	 ((u64)nosnoop & PCI_LTR_VALUE_MASK) * scale);
 }
 
 static void
@@ -369,13 +369,13 @@ cap_sriov(struct device *d, int where)
     return;
 
   l = get_conf_long(d, where + PCI_IOV_CAP);
-  printf("\t\tIOVCap:\tMigration%c, Interrupt Message Number: %03x\n",
-	FLAG(l, PCI_IOV_CAP_VFM), PCI_IOV_CAP_IMN(l));
+  printf("\t\tIOVCap:\tMigration%c 10BitTagReq%c Interrupt Message Number: %03x\n",
+	FLAG(l, PCI_IOV_CAP_VFM), FLAG(l, PCI_IOV_CAP_VF_10BIT_TAG_REQ), PCI_IOV_CAP_IMN(l));
   w = get_conf_word(d, where + PCI_IOV_CTRL);
-  printf("\t\tIOVCtl:\tEnable%c Migration%c Interrupt%c MSE%c ARIHierarchy%c\n",
+  printf("\t\tIOVCtl:\tEnable%c Migration%c Interrupt%c MSE%c ARIHierarchy%c 10BitTagReq%c\n",
 	FLAG(w, PCI_IOV_CTRL_VFE), FLAG(w, PCI_IOV_CTRL_VFME),
 	FLAG(w, PCI_IOV_CTRL_VFMIE), FLAG(w, PCI_IOV_CTRL_MSE),
-	FLAG(w, PCI_IOV_CTRL_ARI));
+	FLAG(w, PCI_IOV_CTRL_ARI), FLAG(w, PCI_IOV_CTRL_VF_10BIT_TAG_REQ_EN));
   w = get_conf_word(d, where + PCI_IOV_STATUS);
   printf("\t\tIOVSta:\tMigration%c\n", FLAG(w, PCI_IOV_STATUS_MS));
   w = get_conf_word(d, where + PCI_IOV_INITIALVF);
@@ -549,7 +549,7 @@ cap_vc(struct device *d, int where)
       pat_pos = BITS(rcap, 24, 8);
       printf("Caps:\tPATOffset=%02x MaxTimeSlots=%d RejSnoopTrans%c\n",
 	pat_pos,
-	BITS(rcap, 16, 6) + 1,
+	BITS(rcap, 16, 7) + 1,
 	FLAG(rcap, 1 << 15));
 
       printf("\t\t\tArb:");
@@ -635,30 +635,465 @@ cap_rclink(struct device *d, int where)
 }
 
 static void
-cap_dvsec_cxl(struct device *d, int where)
+cap_rcec(struct device *d, int where)
 {
-  u16 l;
+  printf("Root Complex Event Collector Endpoint Association\n");
+  if (verbose < 2)
+    return;
 
+  if (!config_fetch(d, where, 12))
+    return;
+
+  u32 hdr = get_conf_long(d, where);
+  byte cap_ver = PCI_RCEC_EP_CAP_VER(hdr);
+  u32 bmap = get_conf_long(d, where + PCI_RCEC_RCIEP_BMAP);
+  printf("\t\tRCiEPBitmap: ");
+  if (bmap)
+    {
+      int prevmatched=0;
+      int adjcount=0;
+      int prevdev=0;
+      printf("RCiEP at Device(s):");
+      for (int dev=0; dev < 32; dev++)
+        {
+	  if (BITS(bmap, dev, 1))
+	    {
+	      if (!adjcount)
+	        printf("%s %u", (prevmatched) ? "," : "", dev);
+	      adjcount++;
+	      prevdev=dev;
+	      prevmatched=1;
+            }
+	  else
+	    {
+	      if (adjcount > 1)
+	        printf("-%u", prevdev);
+	      adjcount=0;
+            }
+        }
+   }
+  else
+    printf("%s", (verbose > 2) ? "00000000 [none]" : "[none]");
+  printf("\n");
+
+  if (cap_ver < PCI_RCEC_BUSN_REG_VER)
+    return;
+
+  u32 busn = get_conf_long(d, where + PCI_RCEC_BUSN_REG);
+  u8 lastbusn = BITS(busn, 16, 8);
+  u8 nextbusn = BITS(busn, 8, 8);
+
+  if ((lastbusn == 0x00) && (nextbusn == 0xff))
+    printf("\t\tAssociatedBusNumbers: %s\n", (verbose > 2) ? "ff-00 [none]" : "[none]");
+  else
+    printf("\t\tAssociatedBusNumbers: %02x-%02x\n", nextbusn, lastbusn );
+}
+
+static void
+cxl_range(u64 base, u64 size, int n)
+{
+  u32 interleave[] = { 0, 256, 4096, 512, 1024, 2048, 8192, 16384 };
+  const char *type[] = { "Volatile", "Non-volatile", "CDAT" };
+  const char *class[] = { "DRAM", "Storage", "CDAT" };
+  u16 w;
+
+  w = (u16) size;
+
+  size &= ~0x0fffffffULL;
+
+  printf("\t\tRange%d: %016"PCI_U64_FMT_X"-%016"PCI_U64_FMT_X"\n", n, base, base + size - 1);
+  printf("\t\t\tValid%c Active%c Type=%s Class=%s interleave=%d timeout=%ds\n",
+    FLAG(w, PCI_CXL_RANGE_VALID), FLAG(w, PCI_CXL_RANGE_ACTIVE),
+    type[PCI_CXL_RANGE_TYPE(w)], class[PCI_CXL_RANGE_CLASS(w)],
+    interleave[PCI_CXL_RANGE_INTERLEAVE(w)],
+    1 << (PCI_CXL_RANGE_TIMEOUT(w) * 2));
+}
+
+static void
+dvsec_cxl_device(struct device *d, int rev, int where, int len)
+{
+  u32 cache_size, cache_unit_size;
+  u64 range_base, range_size;
+  u16 w;
+
+  if (len < PCI_CXL_DEV_LEN)
+    return;
+
+  /* Legacy 1.1 revs aren't handled */
+  if (rev < 1)
+    return;
+
+  w = get_conf_word(d, where + PCI_CXL_DEV_CAP);
+  printf("\t\tCXLCap:\tCache%c IO%c Mem%c Mem HW Init%c HDMCount %d Viral%c\n",
+    FLAG(w, PCI_CXL_DEV_CAP_CACHE), FLAG(w, PCI_CXL_DEV_CAP_IO), FLAG(w, PCI_CXL_DEV_CAP_MEM),
+    FLAG(w, PCI_CXL_DEV_CAP_MEM_HWINIT), PCI_CXL_DEV_CAP_HDM_CNT(w), FLAG(w, PCI_CXL_DEV_CAP_VIRAL));
+
+  w = get_conf_word(d, where + PCI_CXL_DEV_CTRL);
+  printf("\t\tCXLCtl:\tCache%c IO%c Mem%c Cache SF Cov %d Cache SF Gran %d Cache Clean%c Viral%c\n",
+    FLAG(w, PCI_CXL_DEV_CTRL_CACHE), FLAG(w, PCI_CXL_DEV_CTRL_IO), FLAG(w, PCI_CXL_DEV_CTRL_MEM),
+    PCI_CXL_DEV_CTRL_CACHE_SF_COV(w), PCI_CXL_DEV_CTRL_CACHE_SF_GRAN(w), FLAG(w, PCI_CXL_DEV_CTRL_CACHE_CLN),
+    FLAG(w, PCI_CXL_DEV_CTRL_VIRAL));
+
+  w = get_conf_word(d, where + PCI_CXL_DEV_STATUS);
+  printf("\t\tCXLSta:\tViral%c\n", FLAG(w, PCI_CXL_DEV_STATUS_VIRAL));
+
+  w = get_conf_word(d, where + PCI_CXL_DEV_STATUS2);
+  printf("\t\tCXLSta2:\tResetComplete%c ResetError%c PMComplete%c\n",
+    FLAG(w, PCI_CXL_DEV_STATUS_RC), FLAG(w,PCI_CXL_DEV_STATUS_RE), FLAG(w, PCI_CXL_DEV_STATUS_PMC));
+
+  w = get_conf_word(d, where + PCI_CXL_DEV_CAP2);
+  cache_unit_size = BITS(w, 0, 4);
+  cache_size = BITS(w, 8, 8);
+  switch (cache_unit_size)
+    {
+      case PCI_CXL_DEV_CAP2_CACHE_1M:
+        printf("\t\tCache Size: %08x\n", cache_size * (1<<20));
+	break;
+      case PCI_CXL_DEV_CAP2_CACHE_64K:
+        printf("\t\tCache Size: %08x\n", cache_size * (64<<10));
+	break;
+      case PCI_CXL_DEV_CAP2_CACHE_UNK:
+        printf("\t\tCache Size Not Reported\n");
+	break;
+      default:
+        printf("\t\tCache Size: %d of unknown unit size (%d)\n", cache_size, cache_unit_size);
+	break;
+    }
+
+  range_size = (u64) get_conf_long(d, where + PCI_CXL_DEV_RANGE1_SIZE_HI) << 32;
+  range_size |= get_conf_long(d, where + PCI_CXL_DEV_RANGE1_SIZE_LO);
+  range_base = (u64) get_conf_long(d, where + PCI_CXL_DEV_RANGE1_BASE_HI) << 32;
+  range_base |= get_conf_long(d, where + PCI_CXL_DEV_RANGE1_BASE_LO);
+  cxl_range(range_base, range_size, 1);
+
+  range_size = (u64) get_conf_long(d, where + PCI_CXL_DEV_RANGE2_SIZE_HI) << 32;
+  range_size |= get_conf_long(d, where + PCI_CXL_DEV_RANGE2_SIZE_LO);
+  range_base = (u64) get_conf_long(d, where + PCI_CXL_DEV_RANGE2_BASE_HI) << 32;
+  range_base |= get_conf_long(d, where + PCI_CXL_DEV_RANGE2_BASE_LO);
+  cxl_range(range_base, range_size, 2);
+}
+
+static void
+dvsec_cxl_port(struct device *d, int where, int len)
+{
+  u16 w, m1, m2;
+  u8 b1, b2;
+
+  if (len < PCI_CXL_PORT_EXT_LEN)
+    return;
+
+  w = get_conf_word(d, where + PCI_CXL_PORT_EXT_STATUS);
+  printf("\t\tCXLPortSta:\tPMComplete%c\n", FLAG(w, PCI_CXL_PORT_EXT_STATUS));
+
+  w = get_conf_word(d, where + PCI_CXL_PORT_CTRL);
+  printf("\t\tCXLPortCtl:\tUnmaskSBR%c UnmaskLinkDisable%c AltMem%c AltBME%c ViralEnable%c\n",
+    FLAG(w, PCI_CXL_PORT_UNMASK_SBR), FLAG(w, PCI_CXL_PORT_UNMASK_LINK),
+    FLAG(w, PCI_CXL_PORT_ALT_MEMORY), FLAG(w, PCI_CXL_PORT_ALT_BME),
+    FLAG(w, PCI_CXL_PORT_VIRAL_EN));
+
+  b1 = get_conf_byte(d, where + PCI_CXL_PORT_ALT_BUS_BASE);
+  b2 = get_conf_byte(d, where + PCI_CXL_PORT_ALT_BUS_LIMIT);
+  printf("\t\tAlternateBus:\t%02x-%02x\n", b1, b2);
+  m1 = get_conf_word(d, where + PCI_CXL_PORT_ALT_MEM_BASE);
+  m2 = get_conf_word(d, where + PCI_CXL_PORT_ALT_MEM_LIMIT);
+  printf("\t\tAlternateBus:\t%04x-%04x\n", m1, m2);
+}
+
+static void
+dvsec_cxl_register_locator(struct device *d, int where, int len)
+{
+  static const char * const id_names[] = {
+    "empty",
+    "component registers",
+    "BAR virtualization",
+    "CXL device registers",
+    "CPMU registers",
+  };
+
+  for (int i=0; ; i++)
+    {
+      int pos = where + PCI_CXL_RL_BLOCK1_LO + 8*i;
+      if (pos + 7 >= where + len)
+	break;
+
+      u32 lo = get_conf_long(d, pos);
+      u32 hi = get_conf_long(d, pos + 4);
+
+      unsigned int bir = BITS(lo, 0, 3);
+      unsigned int block_id = BITS(lo, 8, 8);
+      u64 base = (BITS(lo, 16, 16) << 16) | ((u64) hi << 32);
+
+      if (!block_id)
+	continue;
+
+      const char *id_name;
+      if (block_id < sizeof(id_names) / sizeof(*id_names))
+	id_name = id_names[block_id];
+      else if (block_id == 0xff)
+	id_name = "vendor-specific";
+      else
+	id_name = "<?>";
+
+      printf("\t\tBlock%d: BIR: bar%d, ID: %s, offset: %016" PCI_U64_FMT_X "\n", i + 1, bir, id_name, base);
+    }
+}
+
+static void
+dvsec_cxl_gpf_device(struct device *d, int where)
+{
+  u32 l;
+  u16 w, duration;
+  u8 time_base, time_scale;
+
+  w = get_conf_word(d, where + PCI_CXL_GPF_DEV_PHASE2_DUR);
+  time_base = BITS(w, 0, 4);
+  time_scale = BITS(w, 8, 4);
+
+  switch (time_scale)
+    {
+      case PCI_CXL_GPF_DEV_100US:
+      case PCI_CXL_GPF_DEV_100MS:
+        duration = time_base * 100;
+        break;
+      case PCI_CXL_GPF_DEV_10US:
+      case PCI_CXL_GPF_DEV_10MS:
+      case PCI_CXL_GPF_DEV_10S:
+        duration = time_base * 10;
+        break;
+      case PCI_CXL_GPF_DEV_1US:
+      case PCI_CXL_GPF_DEV_1MS:
+      case PCI_CXL_GPF_DEV_1S:
+        duration = time_base;
+        break;
+      default:
+        /* Reserved */
+        printf("\t\tReserved time scale encoding %x\n", time_scale);
+        duration = time_base;
+    }
+
+  printf("\t\tGPF Phase 2 Duration: %u%s\n", duration,
+      (time_scale < PCI_CXL_GPF_DEV_1MS) ? "us":
+      (time_scale < PCI_CXL_GPF_DEV_1S) ? "ms" :
+      (time_scale == PCI_CXL_GPF_DEV_1S) ? "s" : "<?>");
+
+  l = get_conf_long(d, where + PCI_CXL_GPF_DEV_PHASE2_POW);
+  printf("\t\tGPF Phase 2 Power: %umW\n", (unsigned int)l);
+}
+
+static void
+dvsec_cxl_gpf_port(struct device *d, int where)
+{
+  u16 w, timeout;
+  u8 time_base, time_scale;
+
+  w = get_conf_word(d, where + PCI_CXL_GPF_PORT_PHASE1_CTRL);
+  time_base = BITS(w, 0, 4);
+  time_scale = BITS(w, 8, 4);
+
+  switch (time_scale)
+    {
+      case PCI_CXL_GPF_PORT_100US:
+      case PCI_CXL_GPF_PORT_100MS:
+        timeout = time_base * 100;
+        break;
+      case PCI_CXL_GPF_PORT_10US:
+      case PCI_CXL_GPF_PORT_10MS:
+      case PCI_CXL_GPF_PORT_10S:
+        timeout = time_base * 10;
+        break;
+      case PCI_CXL_GPF_PORT_1US:
+      case PCI_CXL_GPF_PORT_1MS:
+      case PCI_CXL_GPF_PORT_1S:
+        timeout = time_base;
+        break;
+      default:
+        /* Reserved */
+        printf("\t\tReserved time scale encoding %x\n", time_scale);
+        timeout = time_base;
+    }
+
+  printf("\t\tGPF Phase 1 Timeout: %d%s\n", timeout,
+      (time_scale < PCI_CXL_GPF_PORT_1MS) ? "us":
+      (time_scale < PCI_CXL_GPF_PORT_1S) ? "ms" :
+      (time_scale == PCI_CXL_GPF_PORT_1S) ? "s" : "<?>");
+
+  w = get_conf_word(d, where + PCI_CXL_GPF_PORT_PHASE2_CTRL);
+  time_base = BITS(w, 0, 4);
+  time_scale = BITS(w, 8, 4);
+
+  switch (time_scale)
+    {
+      case PCI_CXL_GPF_PORT_100US:
+      case PCI_CXL_GPF_PORT_100MS:
+        timeout = time_base * 100;
+        break;
+      case PCI_CXL_GPF_PORT_10US:
+      case PCI_CXL_GPF_PORT_10MS:
+      case PCI_CXL_GPF_PORT_10S:
+        timeout = time_base * 10;
+        break;
+      case PCI_CXL_GPF_PORT_1US:
+      case PCI_CXL_GPF_PORT_1MS:
+      case PCI_CXL_GPF_PORT_1S:
+        timeout = time_base;
+        break;
+      default:
+        /* Reserved */
+        printf("\t\tReserved time scale encoding %x\n", time_scale);
+        timeout = time_base;
+    }
+
+  printf("\t\tGPF Phase 2 Timeout: %d%s\n", timeout,
+      (time_scale < PCI_CXL_GPF_PORT_1MS) ? "us":
+      (time_scale < PCI_CXL_GPF_PORT_1S) ? "ms" :
+      (time_scale == PCI_CXL_GPF_PORT_1S) ? "s" : "<?>");
+}
+
+static void
+dvsec_cxl_flex_bus(struct device *d, int where, int rev)
+{
+  u16 w;
+  u32 l, data;
+
+  if (rev < 1)
+  {
+    printf("\t\tRevision %d not supported\n", rev);
+    return;
+  }
+
+  w = get_conf_word(d, where + PCI_CXL_FB_PORT_CAP);
+  printf("\t\tFBCap:\tCache%c IO%c Mem%c 68BFlit%c MltLogDev%c",
+      FLAG(w, PCI_CXL_FB_CAP_CACHE), FLAG(w, PCI_CXL_FB_CAP_IO),
+      FLAG(w, PCI_CXL_FB_CAP_MEM), FLAG(w, PCI_CXL_FB_CAP_68B_FLIT),
+      FLAG(w, PCI_CXL_FB_CAP_MULT_LOG_DEV));
+
+  if (rev > 1)
+    printf(" 256BFlit%c PBRFlit%c",
+        FLAG(w, PCI_CXL_FB_CAP_256B_FLIT), FLAG(w, PCI_CXL_FB_CAP_PBR_FLIT));
+
+  w = get_conf_word(d, where + PCI_CXL_FB_PORT_CTRL);
+  printf("\n\t\tFBCtl:\tCache%c IO%c Mem%c SynHdrByp%c DrftBuf%c 68BFlit%c MltLogDev%c RCD%c Retimer1%c Retimer2%c",
+      FLAG(w, PCI_CXL_FB_CTRL_CACHE), FLAG(w, PCI_CXL_FB_CTRL_IO),
+      FLAG(w, PCI_CXL_FB_CTRL_MEM), FLAG(w, PCI_CXL_FB_CTRL_SYNC_HDR_BYP),
+      FLAG(w, PCI_CXL_FB_CTRL_DRFT_BUF), FLAG(w, PCI_CXL_FB_CTRL_68B_FLIT),
+      FLAG(w, PCI_CXL_FB_CTRL_MULT_LOG_DEV), FLAG(w, PCI_CXL_FB_CTRL_RCD),
+      FLAG(w, PCI_CXL_FB_CTRL_RETIMER1), FLAG(w, PCI_CXL_FB_CTRL_RETIMER2));
+
+  if (rev > 1)
+    printf(" 256BFlit%c PBRFlit%c",
+        FLAG(w, PCI_CXL_FB_CTRL_256B_FLIT), FLAG(w, PCI_CXL_FB_CTRL_PBR_FLIT));
+
+  w = get_conf_word(d, where + PCI_CXL_FB_PORT_STATUS);
+  printf("\n\t\tFBSta:\tCache%c IO%c Mem%c SynHdrByp%c DrftBuf%c 68BFlit%c MltLogDev%c",
+      FLAG(w, PCI_CXL_FB_STAT_CACHE), FLAG(w, PCI_CXL_FB_STAT_IO),
+      FLAG(w, PCI_CXL_FB_STAT_MEM), FLAG(w, PCI_CXL_FB_STAT_SYNC_HDR_BYP),
+      FLAG(w, PCI_CXL_FB_STAT_DRFT_BUF), FLAG(w, PCI_CXL_FB_STAT_68B_FLIT),
+      FLAG(w, PCI_CXL_FB_STAT_MULT_LOG_DEV));
+
+  if (rev > 1)
+    printf(" 256BFlit%c PBRFlit%c",
+        FLAG(w, PCI_CXL_FB_STAT_256B_FLIT), FLAG(w, PCI_CXL_FB_STAT_PBR_FLIT));
+
+  l = get_conf_long(d, where + PCI_CXL_FB_MOD_TS_DATA);
+  data = BITS(l, 0, 24);
+  printf("\n\t\tFBModTS:\tReceived FB Data: %06x\n", (unsigned int)data);
+
+  if (rev > 1)
+  {
+    u8 nop;
+
+    l = get_conf_long(d, where + PCI_CXL_FB_PORT_CAP2);
+    printf("\t\tFBCap2:\tNOPHint%c\n", FLAG(l, PCI_CXL_FB_CAP2_NOP_HINT));
+
+    l = get_conf_long(d, where + PCI_CXL_FB_PORT_CTRL2);
+    printf("\t\tFBCtl2:\tNOPHint%c\n", FLAG(l, PCI_CXL_FB_CTRL2_NOP_HINT));
+
+    l = get_conf_long(d, where + PCI_CXL_FB_PORT_STATUS2);
+    nop = BITS(l, 0, 2);
+    printf("\t\tFBSta2:\tNOPHintInfo: %x\n", nop);
+    }
+}
+
+static void
+dvsec_cxl_mld(struct device *d, int where)
+{
+  u16 w;
+
+  w = get_conf_word(d, where + PCI_CXL_MLD_NUM_LD);
+
+  /* Encodings greater than 16 are reserved */
+  if (w && w <= PCI_CXL_MLD_MAX_LD)
+    printf("\t\tNumLogDevs: %d\n", w);
+}
+
+static void
+dvsec_cxl_function_map(struct device *d, int where)
+{
+
+  printf("\t\tFuncMap 0: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_0)));
+
+  printf("\t\tFuncMap 1: %08x\n",
+    (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_1)));
+
+  printf("\t\tFuncMap 2: %08x\n",
+    (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_2)));
+
+  printf("\t\tFuncMap 3: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_3)));
+
+  printf("\t\tFuncMap 4: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_4)));
+
+  printf("\t\tFuncMap 5: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_5)));
+
+  printf("\t\tFuncMap 6: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_6)));
+
+  printf("\t\tFuncMap 7: %08x\n",
+      (unsigned int)(get_conf_word(d, where + PCI_CXL_FUN_MAP_REG_7)));
+}
+
+static void
+cap_dvsec_cxl(struct device *d, int id, int rev, int where, int len)
+{
   printf(": CXL\n");
   if (verbose < 2)
     return;
 
-  if (!config_fetch(d, where + PCI_CXL_CAP, 12))
+  if (!config_fetch(d, where, len))
     return;
 
-  l = get_conf_word(d, where + PCI_CXL_CAP);
-  printf("\t\tCXLCap:\tCache%c IO%c Mem%c Mem HW Init%c HDMCount %d Viral%c\n",
-    FLAG(l, PCI_CXL_CAP_CACHE), FLAG(l, PCI_CXL_CAP_IO), FLAG(l, PCI_CXL_CAP_MEM),
-    FLAG(l, PCI_CXL_CAP_MEM_HWINIT), PCI_CXL_CAP_HDM_CNT(l), FLAG(l, PCI_CXL_CAP_VIRAL));
-
-  l = get_conf_word(d, where + PCI_CXL_CTRL);
-  printf("\t\tCXLCtl:\tCache%c IO%c Mem%c Cache SF Cov %d Cache SF Gran %d Cache Clean%c Viral%c\n",
-    FLAG(l, PCI_CXL_CTRL_CACHE), FLAG(l, PCI_CXL_CTRL_IO), FLAG(l, PCI_CXL_CTRL_MEM),
-    PCI_CXL_CTRL_CACHE_SF_COV(l), PCI_CXL_CTRL_CACHE_SF_GRAN(l), FLAG(l, PCI_CXL_CTRL_CACHE_CLN),
-    FLAG(l, PCI_CXL_CTRL_VIRAL));
-
-  l = get_conf_word(d, where + PCI_CXL_STATUS);
-  printf("\t\tCXLSta:\tViral%c\n", FLAG(l, PCI_CXL_STATUS_VIRAL));
+  switch (id)
+    {
+    case 0:
+      dvsec_cxl_device(d, rev, where, len);
+      break;
+    case 2:
+      dvsec_cxl_function_map(d, where);
+      break;
+    case 3:
+      dvsec_cxl_port(d, where, len);
+      break;
+    case 4:
+      dvsec_cxl_gpf_port(d, where);
+      break;
+    case 5:
+      dvsec_cxl_gpf_device(d, where);
+      break;
+    case 7:
+      dvsec_cxl_flex_bus(d, where, rev);
+      break;
+    case 8:
+      dvsec_cxl_register_locator(d, where, len);
+      break;
+    case 9:
+      dvsec_cxl_mld(d, where);
+      break;
+    default:
+      printf("\t\tUnknown ID %04x\n", id);
+    }
 }
 
 static void
@@ -679,8 +1114,8 @@ cap_dvsec(struct device *d, int where)
   u16 id = get_conf_long(d, where + PCI_DVSEC_HEADER2);
 
   printf("Vendor=%04x ID=%04x Rev=%d Len=%d", vendor, id, rev, len);
-  if (vendor == PCI_DVSEC_VENDOR_ID_CXL && id == PCI_DVSEC_ID_CXL && len >= 16)
-    cap_dvsec_cxl(d, where);
+  if (vendor == PCI_DVSEC_VENDOR_ID_CXL && len >= 16)
+    cap_dvsec_cxl(d, id, rev, where, len);
   else
     printf(" <?>\n");
 }
@@ -771,7 +1206,7 @@ cap_l1pm(struct device *d, int where)
 	  if (scale > 5)
 	    printf(" LTR1.2_Threshold=<error>");
 	  else
-	    printf(" LTR1.2_Threshold=%lldns", BITS(val, 16, 10) * (unsigned long long) cap_ltr_scale(scale));
+	    printf(" LTR1.2_Threshold=%" PCI_U64_FMT_U "ns", BITS(val, 16, 10) * (u64) cap_ltr_scale(scale));
 	}
       printf("\n");
     }
@@ -937,6 +1372,41 @@ cap_rebar(struct device *d, int where, int virtual)
     }
 }
 
+static void
+cap_doe(struct device *d, int where)
+{
+  u32 l;
+
+  printf("Data Object Exchange\n");
+
+  if (verbose < 2)
+    return;
+
+  if (!config_fetch(d, where + PCI_DOE_CAP, 0x14))
+    {
+      printf("\t\t<unreadable>\n");
+      return;
+    }
+
+  l = get_conf_long(d, where + PCI_DOE_CAP);
+  printf("\t\tDOECap: IntSup%c\n",
+	 FLAG(l, PCI_DOE_CAP_INT_SUPP));
+  if (l & PCI_DOE_CAP_INT_SUPP)
+    printf("\t\t\tInterrupt Message Number %03x\n",
+	   PCI_DOE_CAP_INT_MSG(l));
+
+  l = get_conf_long(d, where + PCI_DOE_CTL);
+  printf("\t\tDOECtl: IntEn%c\n",
+	 FLAG(l, PCI_DOE_CTL_INT));
+
+  l = get_conf_long(d, where + PCI_DOE_STS);
+  printf("\t\tDOESta: Busy%c IntSta%c Error%c ObjectReady%c\n",
+	 FLAG(l, PCI_DOE_STS_BUSY),
+	 FLAG(l, PCI_DOE_STS_INT),
+	 FLAG(l, PCI_DOE_STS_ERROR),
+	 FLAG(l, PCI_DOE_STS_OBJECT_READY));
+}
+
 void
 show_ext_caps(struct device *d, int type)
 {
@@ -951,7 +1421,7 @@ show_ext_caps(struct device *d, int type)
       if (!config_fetch(d, where, 4))
 	break;
       header = get_conf_long(d, where);
-      if (!header)
+      if (!header || header == 0xffffffff)
 	break;
       id = header & 0xffff;
       version = (header >> 16) & 0xf;
@@ -991,8 +1461,8 @@ show_ext_caps(struct device *d, int type)
 	  case PCI_EXT_CAP_ID_RCILINK:
 	    printf("Root Complex Internal Link <?>\n");
 	    break;
-	  case PCI_EXT_CAP_ID_RCECOLL:
-	    printf("Root Complex Event Collector <?>\n");
+	  case PCI_EXT_CAP_ID_RCEC:
+	    cap_rcec(d, where);
 	    break;
 	  case PCI_EXT_CAP_ID_MFVC:
 	    printf("Multi-Function Virtual Channel <?>\n");
@@ -1083,6 +1553,9 @@ show_ext_caps(struct device *d, int type)
 	    break;
 	  case PCI_EXT_CAP_ID_NPEM:
 	    printf("Native PCIe Enclosure Management <?>\n");
+	    break;
+	  case PCI_EXT_CAP_ID_DOE:
+	    cap_doe(d, where);
 	    break;
 	  default:
 	    printf("Extended Capability ID %#02x\n", id);

@@ -1,3 +1,73 @@
+2022-11-20  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.9.0.
+
+	* We decode Compute Express Link (CXL) capabilities.
+
+	* The tree mode of lspci is now compatible with filtering options.
+
+	* When setpci is used with a named register, it checks whether
+	  the register is present in the particular header type.
+
+	* Linux: The intel-conf[12] back-ends prefer to use ioperm() instead
+	  of iopl() to gain access to I/O ports.
+
+	* Windows: We have two new back-ends thanks to Pali Rohár.
+	  One uses the NT SysDbg interface, the other uses kldbgdrv.sys
+	  (which is a part of the Microsoft WinDbg tool).
+
+	* Windows: We support building libpci as a DLL. Also, Windows
+	  binaries now include meta-data with version.
+
+	* Hurd: The Hurd back-end works again.
+
+	* mmio-conf1(-ext): Added a new back-end implementing the intel-conf1
+	  interface over MMIO. This is useful on some ARM machines, but it
+	  requires manual configuration of the MMIO addresses.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
+2022-04-18  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.8.0.
+
+	* Filters can now match devices based on partially specified
+	  class code and also on the programming interface.
+
+	* Reporting of link speeds, power limits, and virtual function tags
+	  has been updated to the current PCIe specification.
+
+	* We decode the Data Object Exchange capability.
+
+	* Bus mapping mode works in non-zero domains.
+
+	* pci_fill_info() can fetch more fields: bridge bases, programming
+	  interface, revision, subsystem vendor and device ID, OS driver,
+	  and also parent bridge. Internally, the implementation was rewritten,
+	  significantly reducing the number of corner cases to be handled.
+
+	* The Windows port was revived and greatly improved by Pali Rohár.
+	  It requires less magic to compile. More importantly, it runs on both
+	  old and recent Windows systems (see README.Windows for details).
+
+	* Added a new Windows back-end using the cfgmgr32 interface.
+	  It does not provide direct access to the configuration space,
+	  but basic information about the device is reported via pci_fill_info().
+	  For back-ends of this type, we now provide an emulated read-only
+	  config space.
+
+	* If the configuration space is not readable for some reason
+	  (e.g., the cfgmgr32 back-end, but also badly implemented sleep mode
+	  of some devices), lspci prints only information provided by the OS.
+
+	* The Hurd back-end was greatly improved thanks to Joan Lledó.
+
+	* Various minor bug fixes and improvements.
+
+	* We officially require a working C99 compiler. Sorry, MSVC.
+
+	* As usually, updated pci.ids to the current snapshot of the database.
+
 2020-05-31  Martin Mares <mj@ucw.cz>
 
 	* Released as 3.7.0.
@@ -763,7 +833,7 @@
 
 2007-08-31  Martin Mares <mj@ucw.cz>
 
-	* Makefile, lib/Makefile: `ar' and `ranlib' can be overriden to allow
+	* Makefile, lib/Makefile: `ar' and `ranlib' can be overridden to allow
 	cross-compilation.
 
 2007-08-27  Martin Mares  <mj@ucw.cz>
@@ -1337,7 +1407,7 @@
 	is not supported by all C libraries.
 
 	* Makefile: Always enter the lib directory (remember that we don't have
-	full dependecies for the library in the top-level Makefile; hmmm, another
+	full dependencies for the library in the top-level Makefile; hmmm, another
 	thing to rewrite some day).
 
 	* lib/sysfs.c: Added Linux sysfs access method based on the patch
@@ -1860,7 +1930,7 @@ Wed Jul  7 00:55:48 1999  Martin Mares  <mj@albireo.ucw.cz>
 
 	* lspci.c (show_msi): Added dumping of the MSI capability.
 	(show_slotid): The same for SlotID capability.
-	(show_caps): Seperated capability dumping, because it should
+	(show_caps): Separated capability dumping, because it should
 	be used for both htype0 and htype1. Even PCI 2.2 doesn't mention
 	layout of htype2, so I'm a bit unsure about it wrt capabilities
 	-- they at least have to live somewhere else since address 0x34
@@ -1975,7 +2045,7 @@ Thu Jan 28 20:54:16 1999  Martin Mares  <mj@albireo.ucw.cz>
 	is mainly guesswork based on DEC/Intel 21153 bridge specs
 	since I don't have the PCI Power Management document).
 
-	* lspci.c: Replaced numerous occurences of (x & flag) ? '+' : '-'
+	* lspci.c: Replaced numerous occurrences of (x & flag) ? '+' : '-'
 	by FLAG macro.
 
 	* lspci.c: Added bridge checks to bus mapping code.
@@ -2007,11 +2077,11 @@ Sun Jan 24 22:10:36 1999  Martin Mares  <mj@albireo.ucw.cz>
 	* lib/header.h: Until kernel adopts new layout of PCI
 	includes (i.e., separate declaration of header structure,
 	functions and device IDs), which is not going to happen
-	before 2.3, we'll use our own definiton of the header.
+	before 2.3, we'll use our own definition of the header.
 
 	* lspci.c (show_verbose): Display `Cap' flag in device status.
 
-	* lspci.c (show_htype0): Display capability lists whereever
+	* lspci.c (show_htype0): Display capability lists wherever
 	available. The only capability name we recognize now is `AGP'.
 	Unfortunately, capabilities are stored in device-dependent
 	portion of the configuration space and are thus available

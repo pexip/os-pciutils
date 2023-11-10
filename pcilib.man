@@ -40,6 +40,20 @@ on Linux, Solaris/x86, GNU Hurd, Windows, BeOS and Haiku. Requires root privileg
 is able to address only the first 16 devices on any bus and it seems to be very
 unreliable in many cases.
 .TP
+.B mmio-conf1
+Direct hardware access via Intel configuration mechanism 1 via memory-mapped I/O.
+Mostly used on non-i386 platforms. Requires root privileges. Warning: This method
+needs to be properly configured via the
+.B mmio-conf1.addrs
+parameter.
+.TP
+.B mmio-conf1-ext
+Direct hardware access via Extended PCIe Intel configuration mechanism 1 via memory-mapped I/O.
+Mostly used on non-i386 platforms. Requires root privileges. Warning: This method
+needs to be properly configured via the
+.B mmio-conf1-ext.addrs
+parameter.
+.TP
 .B fbsd-device
 The
 .B /dev/pci
@@ -66,6 +80,48 @@ parameter. The format corresponds to the output of \fIlspci\fP \fB-x\fP.
 .B darwin
 Access method used on Mac OS X / Darwin. Must be run as root and the system
 must have been booted with debug=0x144.
+.TP
+.B win32-cfgmgr32
+Device listing on Windows systems using the Windows Configuration Manager
+via cfgmgr32.dll system library. This method does not require any special
+Administrator rights or privileges. Configuration Manager provides only basic
+information about devices, assigned resources and device tree structure. There
+is no access to the PCI configuration space but libpci provides read-only
+virtual emulation based on information from Configuration Manager. Starting
+with Windows 8 (NT 6.2) it is not possible to retrieve resources from 32-bit
+application or library on 64-bit system.
+.TP
+.B win32-sysdbg
+Access to the PCI configuration space via NT SysDbg interface on Windows
+systems. Process needs to have Debug privilege, which local Administrators
+have by default. Not available on 64-bit systems and neither on recent 32-bit
+systems. Only devices from the first domain are accessible and only first
+256 bytes of the PCI configuration space is accessible via this method.
+.TP
+.B win32-kldbg
+Access to the PCI configuration space via Kernel Local Debugging Driver
+kldbgdrv.sys. This driver is not part of the Windows system but is part of
+the Microsoft WinDbg tool. It is required to have kldbgdrv.sys driver installed
+in the system32 directory or to have windbg.exe or kd.exe binary in PATH.
+kldbgdrv.sys driver has some restrictions. Process needs to have Debug privilege
+and Windows system has to be booted with Debugging option. Debugging option can
+be enabled by calling (takes effect after next boot):
+.B bcdedit /debug on
+.IP
+Download links for WinDbg 6.12.2.633 standalone installer from Microsoft Windows
+SDK for Windows 7 and .NET Framework 4:
+.br
+amd64: https://download.microsoft.com/download/A/6/A/A6AC035D-DA3F-4F0C-ADA4-37C8E5D34E3D/setup/WinSDKDebuggingTools_amd64/dbg_amd64.msi
+.br
+ia64: https://download.microsoft.com/download/A/6/A/A6AC035D-DA3F-4F0C-ADA4-37C8E5D34E3D/setup/WinSDKDebuggingTools_ia64/dbg_ia64.msi
+.br
+x86: https://download.microsoft.com/download/A/6/A/A6AC035D-DA3F-4F0C-ADA4-37C8E5D34E3D/setup/WinSDKDebuggingTools/dbg_x86.msi
+.IP
+Archived download links of previous WinDbg versions:
+.br
+https://web.archive.org/web/20110221133326/https://www.microsoft.com/whdc/devtools/debugging/installx86.mspx
+.br
+https://web.archive.org/web/20110214012715/https://www.microsoft.com/whdc/devtools/debugging/install64bit.mspx
 
 .SH PARAMETERS
 
@@ -94,6 +150,21 @@ Path to the procfs bus tree.
 .TP
 .B sysfs.path
 Path to the sysfs device tree.
+.TP
+.B devmem.path
+Path to the /dev/mem device.
+.TP
+.B mmio-conf1.addrs
+Physical addresses of memory-mapped I/O ports for Intel configuration mechanism 1.
+CF8 (address) and CFC (data) I/O port addresses are separated by slash and
+multiple addresses for different PCI domains are separated by commas.
+Format: 0xaddr1/0xdata1,0xaddr2/0xdata2,...
+.TP
+.B mmio-conf1-ext.addrs
+Physical addresses of memory-mapped I/O ports for Extended PCIe Intel configuration mechanism 1.
+It has same format as
+.B mmio-conf1.addrs
+parameter.
 
 .SS Parameters for resolving of ID's via DNS
 .TP

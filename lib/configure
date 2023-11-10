@@ -9,7 +9,7 @@ echo_n() {
 	printf '%s' "$*"
 }
 
-if [ -z "$VERSION" -o -z "$IDSDIR" ] ; then
+if [ -z "$VERSION" ] ; then
 	echo >&2 "Please run the configure script from the top-level Makefile"
 	exit 1
 fi
@@ -25,11 +25,19 @@ if [ -z "$HOST" ] ; then
 		proc=`/usr/sbin/lsdev -C -c processor -S available -F name | head -1`
 		cpu=`/usr/sbin/lsattr -F value -l $proc -a type | sed 's/_.*//'`
 	else
-		cpu=`uname -m | sed 's/^i.86$/i386/;s/^sun4u$/sparc64/;s/^i86pc$/i386/;s/^BePC$/i386/;s/^BeMac$/powerpc/;s/^BeBox$/powerpc/'`
+		cpu=`uname -m | sed 's/^i.86-AT386/i386/;s/^i.86$/i386/;s/^sun4u$/sparc64/;s/^i86pc$/i386/;s/^BePC$/i386/;s/^BeMac$/powerpc/;s/^BeBox$/powerpc/'`
 	fi
-	if [ "$sys" = "GNU/kFreeBSD" -o "$sys" = "DragonFly" ]
+	if [ "$sys" = "DragonFly" ]
 	then
 		sys=freebsd
+	fi
+	if [ "$sys" = "GNU/kFreeBSD" ]
+	then
+		sys=kfreebsd
+	fi
+	if [ "$sys" = "GNU" ]
+	then
+		sys=gnu
 	fi
 	if [ "$sys" = "CYGWIN_NT-5.1" -o "$sys" = "CYGWIN_NT-6.0" ]
 	then
@@ -54,21 +62,27 @@ echo >$m 'WITH_LIBS='
 echo_n "Looking for access methods..."
 LIBRESOLV=-lresolv
 LIBEXT=so
+EXEEXT=
+SYSINCLUDE=/usr/include
+LSPCIDIR=SBINDIR
 
 case $sys in
 	linux*)
-		echo_n " sysfs proc"
+		echo_n " sysfs proc mem-ports"
 		echo >>$c '#define PCI_HAVE_PM_LINUX_SYSFS'
 		echo >>$c '#define PCI_HAVE_PM_LINUX_PROC'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
 		echo >>$c '#define PCI_HAVE_LINUX_BYTEORDER_H'
 		echo >>$c '#define PCI_PATH_PROC_BUS_PCI "/proc/bus/pci"'
 		echo >>$c '#define PCI_PATH_SYS_BUS_PCI "/sys/bus/pci"'
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
 		case $cpu in
 				i?86|x86_64)	echo_n " i386-ports"
 						echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
 						;;
 		esac
 		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
+		LSPCIDIR=BINDIR
 		;;
 	sunos)
 		case $cpu in
@@ -82,18 +96,22 @@ case $sys in
 		esac
 		echo >>$c '#define PCI_HAVE_STDINT_H'
 		;;
-	freebsd*)
-		echo_n " fbsd-device"
+	freebsd*|kfreebsd*)
+		echo_n " fbsd-device mem-ports"
 		echo >>$c '#define PCI_HAVE_PM_FBSD_DEVICE'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
 		echo >>$c '#define PCI_PATH_FBSD_DEVICE "/dev/pci"'
-		if [ "$realsys" != "GNU/kFreeBSD" ] ; then
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
+		if [ "$sys" != "kfreebsd" ] ; then
 			LIBRESOLV=
 		fi
 		;;
         openbsd)
-	        echo_n " obsd-device"
+	        echo_n " obsd-device mem-ports"
 		echo >>$c '#define PCI_HAVE_PM_OBSD_DEVICE'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
 		echo >>$c '#define PCI_PATH_OBSD_DEVICE "/dev/pci"'
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
 		LIBRESOLV=
 		;;
 
@@ -104,6 +122,7 @@ case $sys in
 		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
 		LIBRESOLV=
 		LIBEXT=dylib
+		SYSINCLUDE=$(xcrun --sdk macosx --show-sdk-path)/usr/include
 		;;
 	aix)
 		echo_n " aix-device"
@@ -113,9 +132,11 @@ case $sys in
 		echo >>$m 'DIRINSTALL=mkdir -p'
 		;;
 	netbsd)
-		echo_n " nbsd-libpci"
+		echo_n " nbsd-libpci mem-ports"
 		echo >>$c '#define PCI_HAVE_PM_NBSD_LIBPCI'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
 		echo >>$c '#define PCI_PATH_NBSD_DEVICE "/dev/pci0"'
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
 		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
 		echo >>$m 'LIBNAME=libpciutils'
 		echo >>$m 'WITH_LIBS+=-lpci'
@@ -129,11 +150,32 @@ case $sys in
 	djgpp)
 		echo_n " i386-ports"
 		echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
+		EXEEXT=.exe
 		;;
-	cygwin)
+	cygwin|windows)
+		echo_n " win32-cfgmgr32 win32-kldbg win32-sysdbg"
+		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
+		echo >>$c '#define PCI_HAVE_PM_WIN32_CFGMGR32'
+		echo >>$c '#define PCI_HAVE_PM_WIN32_KLDBG'
+		echo >>$c '#define PCI_HAVE_PM_WIN32_SYSDBG'
+		# Warning: MinGW-w64 (incorrectly) provides cfgmgr32 functions
+		# also in other import libraries, not only in libcfgmgr32.a.
+		# So always set -lcfgmgr32 as a first library parameter which
+		# instruct linker to prefer symbols from cfgmgr32.dll.
+		echo >>$m 'WITH_LIBS+=-lcfgmgr32'
+		case $cpu in i?86|x86_64)
 		echo_n " i386-ports"
 		echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
-		echo >>$m 'WITH_LIBS+=-lioperm'
+		if [ "$sys" = "cygwin" ] ; then
+			# ioperm is cygwin specific library and used only by lib/i386-io-cygwin.h
+			echo >>$m 'WITH_LIBS+=-lioperm'
+		elif [ "$sys" = "windows" ] ; then
+			# advapi32 is windows system library and used only by lib/i386-io-windows.h
+			echo >>$m 'WITH_LIBS+=-ladvapi32'
+		fi
+		;; esac
+		EXEEXT=.exe
+		LIBEXT=dll
 		;;
 	beos|haiku)
 		case $cpu in
@@ -157,6 +199,8 @@ case $sys in
 esac
 
 echo >>$m "LIBEXT="$LIBEXT
+echo >>$m "EXEEXT="$EXEEXT
+echo >>$m "LSPCIDIR=\$($LSPCIDIR)"
 echo >>$c '#define PCI_HAVE_PM_DUMP'
 echo " dump"
 
@@ -164,7 +208,7 @@ echo_n "Checking for zlib support... "
 if [ "$ZLIB" = yes -o "$ZLIB" = no ] ; then
 	echo "$ZLIB (set manually)"
 else
-	if [ -f /usr/include/zlib.h -o -f /usr/local/include/zlib.h ] ; then
+	if [ -f "$SYSINCLUDE/zlib.h" -o -f /usr/local/include/zlib.h ] ; then
 		ZLIB=yes
 	else
 		ZLIB=no
@@ -185,7 +229,7 @@ echo_n "Checking for DNS support... "
 if [ "$DNS" = yes -o "$DNS" = no ] ; then
 	echo "$DNS (set manually)"
 else
-	if [ -f /usr/include/resolv.h ] ; then
+	if [ "$sys" != "windows" -a -f "$SYSINCLUDE/resolv.h" ] ; then
 		DNS=yes
 	else
 		DNS=no
@@ -205,7 +249,7 @@ if [ "$sys" = linux ] ; then
 		PKG_CONFIG=pkg-config
 	fi
 	if [ "$LIBKMOD" != no ] ; then
-		if ! which $PKG_CONFIG >/dev/null ; then
+		if ! command -v $PKG_CONFIG >/dev/null ; then
 			echo_n "($PKG_CONFIG not found) "
 		elif $PKG_CONFIG libkmod ; then
 			LIBKMOD_DETECTED=1
@@ -235,7 +279,7 @@ if [ "$sys" = linux ] ; then
 	if [ "$HWDB" = yes -o "$HWDB" = no ] ; then
 		echo "$HWDB (set manually)"
 	else
-		if `which pkg-config >/dev/null && pkg-config --atleast-version=196 libudev` ; then
+		if `command -v $PKG_CONFIG >/dev/null && $PKG_CONFIG --atleast-version=196 libudev` ; then
 			HWDB=yes
 		else
 			HWDB=no
@@ -257,6 +301,8 @@ if [ "$SHARED" = no ] ; then
 else
 	if [ "$LIBEXT" = so ]; then
 		echo >>$m 'PCILIB=$(LIBNAME).$(LIBEXT).$(VERSION)'
+	elif [ "$LIBEXT" = dll ]; then
+		echo >>$m 'PCILIB=$(LIBNAME)$(ABI_VERSION).$(LIBEXT)'
 	else
 		echo >>$m 'PCILIB=$(LIBNAME).$(VERSION).$(LIBEXT)'
 	fi
@@ -264,11 +310,24 @@ else
 	echo >>$m 'LDLIBS='
 	echo >>$m 'LIB_LDLIBS=$(WITH_LIBS)'
 	echo >>$c '#define PCI_SHARED_LIB'
-	if [ "$SHARED" = yes -a "$LIBEXT" = so ]; then
-		echo >>$m 'SONAME=-Wl,-soname,$(LIBNAME).$(LIBEXT)$(ABI_VERSION)'
+	if [ "$LIBEXT" = so ]; then
+		echo >>$m 'PCILIB_LDFLAGS+=-Wl,-soname,$(LIBNAME).$(LIBEXT).$(ABI_VERSION)'
+		echo >>$m 'PCILIB_LDFLAGS+=-Wl,--version-script=libpci.ver'
+	elif [ "$LIBEXT" = dylib ]; then
+		echo >>$m 'PCILIB_LDFLAGS+=-Wl,-install_name,$(LIBDIR)/$(PCILIB)'
+	elif [ "$LIBEXT" = dll ]; then
+		echo >>$m 'PCIIMPDEF=$(LIBNAME)$(ABI_VERSION).def'
+		# GCC's -fvisibility=hidden is broken for Windows targets, use -Wl,--exclude-all-symbols instead (supported since GNU LD 2.21)
+		echo >>$m 'PCILIB_LDFLAGS+=-Wl,--exclude-all-symbols'
 	fi
 fi
 echo >>$m 'PCILIBPC=$(LIBNAME).pc'
+
+if [ "$SHARED" != no ] && [ "$LIBEXT" = dll ]; then
+	echo >>$m 'PCIIMPLIB=$(PCILIB).a'
+else
+	echo >>$m 'PCIIMPLIB=$(PCILIB)'
+fi
 
 echo >>$c "#define PCILIB_VERSION \"$VERSION\""
 sed '/"/{s/^#define \([^ ]*\) "\(.*\)"$/\1=\2/;p;d;};s/^#define \(.*\)/\1=1/' <$c >>$m
