@@ -142,10 +142,10 @@ hexadecimal.  E.g., "0:" means all devices on bus 0, "0" means all functions of 
 on any bus, "0.3" selects third function of device 0 on all buses and ".4" shows only
 the fourth function of each device.
 .TP
-.B -d [<vendor>]:[<device>][:<class>]
-Show only devices with specified vendor, device and class ID. The ID's are
-given in hexadecimal and may be omitted or given as "*", both meaning
-"any value".
+.B -d [<vendor>]:[<device>][:<class>[:<prog-if>]]
+Show only devices with specified vendor, device, class ID, and programming interface.
+The ID's are given in hexadecimal and may be omitted or given as "*", both meaning
+"any value". The class ID can contain "x" characters which stand for "any digit".
 
 .SS Other options
 .TP
@@ -167,7 +167,9 @@ Applies only to Linux systems with recent enough module tools.
 Invoke bus mapping mode which performs a thorough scan of all PCI devices, including
 those behind misconfigured bridges, etc. This option gives meaningful results only
 with a direct hardware access mode, which usually requires root privileges.
-Please note that the bus mapper only scans PCI domain 0.
+By default, the bus mapper scans domain. You can use the
+.B -s
+option to select a different domain.
 .TP
 .B --version
 Shows
@@ -188,7 +190,7 @@ available methods and their descriptions.
 .TP
 .B -O <param>=<value>
 The behavior of the library is controlled by several named parameters.
-This option allows to set the value of any of the parameters. Use \fB-O help\fP
+This option allows one to set the value of any of the parameters. Use \fB-O help\fP
 for a list of known parameters and their default values.
 .TP
 .B -H1

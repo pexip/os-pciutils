@@ -219,7 +219,7 @@
 #define PCI_EXT_CAP_ID_PB	0x04	/* Power Budgeting */
 #define PCI_EXT_CAP_ID_RCLINK	0x05	/* Root Complex Link Declaration */
 #define PCI_EXT_CAP_ID_RCILINK	0x06	/* Root Complex Internal Link Declaration */
-#define PCI_EXT_CAP_ID_RCECOLL	0x07	/* Root Complex Event Collector */
+#define PCI_EXT_CAP_ID_RCEC	0x07	/* Root Complex Event Collector */
 #define PCI_EXT_CAP_ID_MFVC	0x08	/* Multi-Function Virtual Channel */
 #define PCI_EXT_CAP_ID_VC2	0x09	/* Virtual Channel (2nd ID) */
 #define PCI_EXT_CAP_ID_RCRB	0x0a	/* Root Complex Register Block */
@@ -252,6 +252,7 @@
 #define PCI_EXT_CAP_ID_LMR	0x27	/* Lane Margining at Receiver */
 #define PCI_EXT_CAP_ID_HIER_ID	0x28	/* Hierarchy ID */
 #define PCI_EXT_CAP_ID_NPEM	0x29	/* Native PCIe Enclosure Management */
+#define PCI_EXT_CAP_ID_DOE	0x2e	/* Data Object Exchange */
 
 /*** Definitions of capabilities ***/
 
@@ -536,7 +537,7 @@
 #define PCI_HT_SEC_CMD		2	/* Command Register */
 #define  PCI_HT_SEC_CMD_WR	0x0001	/* Warm Reset */
 #define  PCI_HT_SEC_CMD_DE	0x0002	/* Double-Ended */
-#define  PCI_HT_SEC_CMD_DN	0x0076	/* Device Number */
+#define  PCI_HT_SEC_CMD_DN	0x007c	/* Device Number */
 #define  PCI_HT_SEC_CMD_CS	0x0080	/* Chain Side */
 #define  PCI_HT_SEC_CMD_HH	0x0100	/* Host Hide */
 #define  PCI_HT_SEC_CMD_AS	0x0400	/* Act as Slave */
@@ -873,6 +874,13 @@
 #define  PCI_EXP_RTSTA_PME_STATUS  0x00010000 /* PME Status */
 #define  PCI_EXP_RTSTA_PME_PENDING 0x00020000 /* PME is Pending */
 #define PCI_EXP_DEVCAP2			0x24	/* Device capabilities 2 */
+#define  PCI_EXP_DEVCAP2_TIMEOUT_RANGE(x)	((x) & 0xf) /* Completion Timeout Ranges Supported */
+#define  PCI_EXP_DEVCAP2_TIMEOUT_DIS	0x0010	/* Completion Timeout Disable Supported */
+#define  PCI_EXP_DEVCAP2_ARI		0x0020	/* ARI Forwarding Supported */
+#define  PCI_EXP_DEVCAP2_ATOMICOP_ROUTING	0x0040	/* AtomicOp Routing Supported */
+#define  PCI_EXP_DEVCAP2_32BIT_ATOMICOP_COMP	0x0080	/* 32bit AtomicOp Completer Supported */
+#define  PCI_EXP_DEVCAP2_64BIT_ATOMICOP_COMP	0x0100	/* 64bit AtomicOp Completer Supported */
+#define  PCI_EXP_DEVCAP2_128BIT_CAS_COMP	0x0200	/* 128bit CAS Completer Supported */
 #define  PCI_EXP_DEVCAP2_NROPRPRP	0x0400 /* No RO-enabled PR-PR Passing */
 #define  PCI_EXP_DEVCAP2_LTR		0x0800	/* LTR supported */
 #define  PCI_EXP_DEVCAP2_TPH_COMP(x)	(((x) >> 12) & 3) /* TPH Completer Supported */
@@ -887,18 +895,14 @@
 #define  PCI_EXP_DEVCAP2_EPR_INIT	0x04000000 /* Emergency Power Reduction Initialization Required */
 #define  PCI_EXP_DEVCAP2_FRS		0x80000000 /* FRS supported */
 #define PCI_EXP_DEVCTL2			0x28	/* Device Control */
-#define  PCI_EXP_DEV2_TIMEOUT_RANGE(x)	((x) & 0xf) /* Completion Timeout Ranges Supported */
-#define  PCI_EXP_DEV2_TIMEOUT_VALUE(x)	((x) & 0xf) /* Completion Timeout Value */
-#define  PCI_EXP_DEV2_TIMEOUT_DIS	0x0010	/* Completion Timeout Disable Supported */
-#define  PCI_EXP_DEV2_ATOMICOP_REQUESTER_EN	0x0040	/* AtomicOp RequesterEnable */
-#define  PCI_EXP_DEV2_ATOMICOP_EGRESS_BLOCK	0x0080	/* AtomicOp Egress Blocking */
-#define  PCI_EXP_DEV2_ARI		0x0020	/* ARI Forwarding */
-#define  PCI_EXP_DEVCAP2_ATOMICOP_ROUTING	0x0040	/* AtomicOp Routing Supported */
-#define  PCI_EXP_DEVCAP2_32BIT_ATOMICOP_COMP	0x0080	/* 32bit AtomicOp Completer Supported */
-#define  PCI_EXP_DEVCAP2_64BIT_ATOMICOP_COMP	0x0100	/* 64bit AtomicOp Completer Supported */
-#define  PCI_EXP_DEVCAP2_128BIT_CAS_COMP	0x0200	/* 128bit CAS Completer Supported */
-#define  PCI_EXP_DEV2_LTR		0x0400	/* LTR enabled */
-#define  PCI_EXP_DEV2_OBFF(x)		(((x) >> 13) & 3) /* OBFF enabled */
+#define  PCI_EXP_DEVCTL2_TIMEOUT_VALUE(x)	((x) & 0xf) /* Completion Timeout Value */
+#define  PCI_EXP_DEVCTL2_TIMEOUT_DIS	0x0010	/* Completion Timeout Disable */
+#define  PCI_EXP_DEVCTL2_ARI		0x0020	/* ARI Forwarding */
+#define  PCI_EXP_DEVCTL2_ATOMICOP_REQUESTER_EN	0x0040	/* AtomicOp RequesterEnable */
+#define  PCI_EXP_DEVCTL2_ATOMICOP_EGRESS_BLOCK	0x0080	/* AtomicOp Egress Blocking */
+#define  PCI_EXP_DEVCTL2_LTR		0x0400	/* LTR enabled */
+#define  PCI_EXP_DEVCTL2_10BIT_TAG_REQ	0x1000 /* 10 Bit Tag Requester enabled */
+#define  PCI_EXP_DEVCTL2_OBFF(x)		(((x) >> 13) & 3) /* OBFF enabled */
 #define PCI_EXP_DEVSTA2			0x2a	/* Device Status */
 #define PCI_EXP_LNKCAP2			0x2c	/* Link Capabilities */
 #define  PCI_EXP_LNKCAP2_SPEED(x)	(((x) >> 1) & 0x7f)
@@ -914,7 +918,7 @@
 #define  PCI_EXP_LNKCTL2_MARGIN(x)	(((x) >> 7) & 7) /* Transmit Margin */
 #define  PCI_EXP_LNKCTL2_MOD_CMPLNC	0x0400	/* Enter Modified Compliance */
 #define  PCI_EXP_LNKCTL2_CMPLNC_SOS	0x0800	/* Compliance SOS */
-#define  PCI_EXP_LNKCTL2_COM_DEEMPHASIS(x) (((x) >> 12) & 0xf) /* Compliance De-emphasis */
+#define  PCI_EXP_LNKCTL2_COM_DEEMPHASIS(x) (((x) >> 12) & 0xf) /* Compliance Preset/De-emphasis */
 #define PCI_EXP_LNKSTA2			0x32	/* Link Status */
 #define  PCI_EXP_LINKSTA2_DEEMPHASIS(x)	((x) & 1)	/* Current De-emphasis Level */
 #define  PCI_EXP_LINKSTA2_EQU_COMP	0x02	/* Equalization Complete */
@@ -1048,6 +1052,12 @@
 #define  PCI_RCLINK_LINK_ADDR	8	/* Link Entry: Address (64-bit) */
 #define  PCI_RCLINK_LINK_SIZE	16	/* Link Entry: sizeof */
 
+/* Root Complex Event Collector Endpoint Association */
+#define  PCI_RCEC_EP_CAP_VER(reg)	(((reg) >> 16) & 0xf)
+#define  PCI_RCEC_BUSN_REG_VER	0x02	/* as per PCIe sec 7.9.10.1 */
+#define  PCI_RCEC_RCIEP_BMAP	0x0004	/* as per PCIe sec 7.9.10.2 */
+#define  PCI_RCEC_BUSN_REG	0x0008	/* as per PCIe sec 7.9.10.3 */
+
 /* PCIe Vendor-Specific Capability */
 #define PCI_EVNDR_HEADER	4	/* Vendor-Specific Header */
 #define PCI_EVNDR_REGISTERS	8	/* Vendor-Specific Registers */
@@ -1058,24 +1068,146 @@
 #define PCI_DVSEC_VENDOR_ID_CXL	0x1e98	/* Designated Vendor-Specific Vendor ID for CXL */
 #define PCI_DVSEC_ID_CXL	0	/* Designated Vendor-Specific ID for Intel CXL */
 
-/* PCIe CXL Designated Vendor-Specific Capabilities, Control, Status */
-#define PCI_CXL_CAP		0x0a	/* CXL Capability Register */
-#define  PCI_CXL_CAP_CACHE	0x0001	/* CXL.cache Protocol Support */
-#define  PCI_CXL_CAP_IO		0x0002	/* CXL.io Protocol Support */
-#define  PCI_CXL_CAP_MEM	0x0004	/* CXL.mem Protocol Support */
-#define  PCI_CXL_CAP_MEM_HWINIT	0x0008	/* CXL.mem Initalizes with HW/FW Support */
-#define  PCI_CXL_CAP_HDM_CNT(x)	(((x) & (3 << 4)) >> 4)	/* CXL Number of HDM ranges */
-#define  PCI_CXL_CAP_VIRAL	0x4000	/* CXL Viral Handling Support */
-#define PCI_CXL_CTRL		0x0c	/* CXL Control Register */
-#define  PCI_CXL_CTRL_CACHE	0x0001	/* CXL.cache Protocol Enable */
-#define  PCI_CXL_CTRL_IO	0x0002	/* CXL.io Protocol Enable */
-#define  PCI_CXL_CTRL_MEM	0x0004	/* CXL.mem Protocol Enable */
-#define  PCI_CXL_CTRL_CACHE_SF_COV(x)	(((x) & (0x1f << 3)) >> 3) /* Snoop Filter Coverage */
-#define  PCI_CXL_CTRL_CACHE_SF_GRAN(x)	(((x) & (0x7 << 8)) >> 8) /* Snoop Filter Granularity */
-#define  PCI_CXL_CTRL_CACHE_CLN	0x0800	/* CXL.cache Performance Hint on Clean Evictions */
-#define  PCI_CXL_CTRL_VIRAL	0x4000	/* CXL Viral Handling Enable */
-#define PCI_CXL_STATUS		0x0e	/* CXL Status Register */
-#define  PCI_CXL_STATUS_VIRAL	0x4000	/* CXL Viral Handling Status */
+/* PCIe CXL Designated Vendor-Specific Capabilities for Devices: Control, Status */
+#define PCI_CXL_DEV_LEN 0x38 /* CXL Device DVSEC Length */
+#define PCI_CXL_DEV_CAP			0x0a	/* CXL Capability Register */
+#define  PCI_CXL_DEV_CAP_CACHE		0x0001	/* CXL.cache Protocol Support */
+#define  PCI_CXL_DEV_CAP_IO		0x0002	/* CXL.io Protocol Support */
+#define  PCI_CXL_DEV_CAP_MEM		0x0004	/* CXL.mem Protocol Support */
+#define  PCI_CXL_DEV_CAP_MEM_HWINIT	0x0008	/* CXL.mem Initializes with HW/FW Support */
+#define  PCI_CXL_DEV_CAP_HDM_CNT(x)	(((x) & (3 << 4)) >> 4)	/* CXL Number of HDM ranges */
+#define  PCI_CXL_DEV_CAP_VIRAL		0x4000	/* CXL Viral Handling Support */
+#define PCI_CXL_DEV_CTRL		0x0c	/* CXL Control Register */
+#define  PCI_CXL_DEV_CTRL_CACHE		0x0001	/* CXL.cache Protocol Enable */
+#define  PCI_CXL_DEV_CTRL_IO		0x0002	/* CXL.io Protocol Enable */
+#define  PCI_CXL_DEV_CTRL_MEM		0x0004	/* CXL.mem Protocol Enable */
+#define  PCI_CXL_DEV_CTRL_CACHE_SF_COV(x) (((x) & (0x1f << 3)) >> 3) /* Snoop Filter Coverage */
+#define  PCI_CXL_DEV_CTRL_CACHE_SF_GRAN(x) (((x) & (0x7 << 8)) >> 8) /* Snoop Filter Granularity */
+#define  PCI_CXL_DEV_CTRL_CACHE_CLN	0x0800	/* CXL.cache Performance Hint on Clean Evictions */
+#define  PCI_CXL_DEV_CTRL_VIRAL		0x4000	/* CXL Viral Handling Enable */
+#define PCI_CXL_DEV_STATUS		0x0e	/* CXL Status Register */
+#define  PCI_CXL_DEV_STATUS_VIRAL	0x4000	/* CXL Viral Handling Status */
+#define PCI_CXL_DEV_STATUS2		0x12
+#define  PCI_CXL_DEV_STATUS_CACHE_INV	0x0001
+#define  PCI_CXL_DEV_STATUS_RC		0x0002  /* Device Reset Complete */
+#define  PCI_CXL_DEV_STATUS_RE		0x0004  /* Device Reset Error */
+#define  PCI_CXL_DEV_STATUS_PMC		0x8000  /* Power Management Init Complete */
+#define PCI_CXL_DEV_CAP2		0x16
+#define  PCI_CXL_DEV_CAP2_CACHE_UNK	0x0000	/* Cache Size Isn't Reported */
+#define  PCI_CXL_DEV_CAP2_CACHE_64K	0x0001  /* Unit Size 64K */
+#define  PCI_CXL_DEV_CAP2_CACHE_1M	0x0002  /* Unit Size 1M */
+#define PCI_CXL_DEV_RANGE1_SIZE_HI	0x18
+#define PCI_CXL_DEV_RANGE1_SIZE_LO	0x1c
+#define  PCI_CXL_RANGE_VALID		0x0001
+#define  PCI_CXL_RANGE_ACTIVE		0x0002
+#define  PCI_CXL_RANGE_TYPE(x)		(((x) >> 2) & 0x7)
+#define  PCI_CXL_RANGE_CLASS(x)		(((x) >> 5) & 0x7)
+#define  PCI_CXL_RANGE_INTERLEAVE(x)	(((x) >> 8) & 0x1f)
+#define  PCI_CXL_RANGE_TIMEOUT(x)	(((x) >> 13) & 0x7)
+#define PCI_CXL_DEV_RANGE1_BASE_HI	0x20
+#define PCI_CXL_DEV_RANGE1_BASE_LO	0x24
+#define PCI_CXL_DEV_RANGE2_SIZE_HI	0x28
+#define PCI_CXL_DEV_RANGE2_SIZE_LO	0x2c
+#define PCI_CXL_DEV_RANGE2_BASE_HI	0x30
+#define PCI_CXL_DEV_RANGE2_BASE_LO	0x34
+
+/* PCIe CXL 2.0 Designated Vendor-Specific Capabilities for Ports */
+#define PCI_CXL_PORT_EXT_LEN 0x28 /* CXL Extensions DVSEC for Ports Length */
+#define PCI_CXL_PORT_EXT_STATUS 0x0a		/* Port Extension Status */
+#define  PCI_CXL_PORT_PM_INIT_COMPLETE 0x1	/* Port Power Management Initialization Complete */
+#define PCI_CXL_PORT_CTRL 0x0c			/* Port Control Override */
+#define  PCI_CXL_PORT_UNMASK_SBR 0x0001		/* Unmask SBR */
+#define  PCI_CXL_PORT_UNMASK_LINK 0x0002	/* Unmask Link Disable */
+#define  PCI_CXL_PORT_ALT_MEMORY 0x0004		/* Alt Memory and ID Space Enable */
+#define  PCI_CXL_PORT_ALT_BME 0x0008		/* Alt BME */
+#define  PCI_CXL_PORT_VIRAL_EN 0x4000		/* Viral Enable */
+#define PCI_CXL_PORT_ALT_BUS_BASE 0xe
+#define PCI_CXL_PORT_ALT_BUS_LIMIT 0xf
+#define PCI_CXL_PORT_ALT_MEM_BASE 0x10
+#define PCI_CXL_PORT_ALT_MEM_LIMIT 0x12
+
+/* PCIe CXL 2.0 Designated Vendor-Specific Capabilities for Register Locator */
+#define PCI_CXL_RL_BLOCK1_LO 0x0c
+
+/* PCIe CXL Designated Vendor-Specific Capabilities for Global Persistent Flush */
+#define PCI_CXL_GPF_DEV_LEN         0x10
+#define PCI_CXL_GPF_DEV_PHASE2_DUR  0x0a /* GPF Phase 2 Duration Register */
+#define PCI_CXL_GPF_DEV_PHASE2_POW  0x0c /* GPF Phase 2 Power Register */
+#define PCI_CXL_GPF_DEV_1US     0x0
+#define PCI_CXL_GPF_DEV_10US    0x1
+#define PCI_CXL_GPF_DEV_100US   0x2
+#define PCI_CXL_GPF_DEV_1MS     0x3
+#define PCI_CXL_GPF_DEV_10MS    0x4
+#define PCI_CXL_GPF_DEV_100MS   0x5
+#define PCI_CXL_GPF_DEV_1S      0x6
+#define PCI_CXL_GPF_DEV_10S     0x7
+#define PCI_CXL_GPF_PORT_LEN    0x10
+#define PCI_CXL_GPF_PORT_PHASE1_CTRL  0x0c /* GPF Phase 1 Control Register */
+#define PCI_CXL_GPF_PORT_PHASE2_CTRL 0x0e /* GPF Phase 2 Control Register */
+#define PCI_CXL_GPF_PORT_1US     0x0
+#define PCI_CXL_GPF_PORT_10US    0x1
+#define PCI_CXL_GPF_PORT_100US   0x2
+#define PCI_CXL_GPF_PORT_1MS     0x3
+#define PCI_CXL_GPF_PORT_10MS    0x4
+#define PCI_CXL_GPF_PORT_100MS   0x5
+#define PCI_CXL_GPF_PORT_1S      0x6
+#define PCI_CXL_GPF_PORT_10S     0x7
+
+/* PCIe CXL Designated Vendor-Specific Capabilities for Flex Bus Port */
+#define PCI_CXL_FB_LEN                0x20
+#define PCI_CXL_FB_PORT_CAP           0x0a    /* CXL Flex Bus Port Capability Register */
+#define  PCI_CXL_FB_CAP_CACHE         0x0001  /* CXL.cache Capable */
+#define  PCI_CXL_FB_CAP_IO            0x0002  /* CXL.io Capable */
+#define  PCI_CXL_FB_CAP_MEM           0x0004  /* CXL.mem Capable */
+#define  PCI_CXL_FB_CAP_68B_FLIT      0x0020  /* CXL 68B Flit and VH Capable */
+#define  PCI_CXL_FB_CAP_MULT_LOG_DEV  0x0040  /* CXL Multi-Logical Device Capable */
+#define  PCI_CXL_FB_CAP_256B_FLIT     0x2000  /* CXL Latency Optimized 256B Flit Capable */
+#define  PCI_CXL_FB_CAP_PBR_FLIT      0x4000  /* CXL PBR Flit Capable */
+#define PCI_CXL_FB_PORT_CTRL            0x0c    /* CXL Flex Bus Port Control Register */
+#define  PCI_CXL_FB_CTRL_CACHE          0x0001  /* CXL.cache Enable */
+#define  PCI_CXL_FB_CTRL_IO             0x0002  /* CXL.io Enable */
+#define  PCI_CXL_FB_CTRL_MEM            0x0004  /* CXL.mem Enable */
+#define  PCI_CXL_FB_CTRL_SYNC_HDR_BYP   0x0008  /* CXL Sync Header Bypass Enable */
+#define  PCI_CXL_FB_CTRL_DRFT_BUF       0x0010  /* Drift Buffer Enable */
+#define  PCI_CXL_FB_CTRL_68B_FLIT       0x0020  /* CXL 68B Flit and VH Enable */
+#define  PCI_CXL_FB_CTRL_MULT_LOG_DEV   0x0040  /* CXL Multi Logical Device Enable */
+#define  PCI_CXL_FB_CTRL_RCD            0x0080  /* Disable RCD Training */
+#define  PCI_CXL_FB_CTRL_RETIMER1       0x0100  /* Retimer1 Present */
+#define  PCI_CXL_FB_CTRL_RETIMER2       0x0200  /* Retimer2 Present */
+#define  PCI_CXL_FB_CTRL_256B_FLIT      0x2000  /* CXL Latency Optimized 256B Flit Enable */
+#define  PCI_CXL_FB_CTRL_PBR_FLIT       0x4000  /* CXL PBR Flit Enable */
+#define PCI_CXL_FB_PORT_STATUS            0x0e    /* CXL Flex Bus Port Status Register */
+#define  PCI_CXL_FB_STAT_CACHE            0x0001  /* CXL.cache Enabled */
+#define  PCI_CXL_FB_STAT_IO               0x0002  /* CXL.io Enabled */
+#define  PCI_CXL_FB_STAT_MEM              0x0004  /* CXL.mem Enabled */
+#define  PCI_CXL_FB_STAT_SYNC_HDR_BYP     0x0008  /* CXL Sync Header Bypass Enabled */
+#define  PCI_CXL_FB_STAT_DRFT_BUF         0x0010  /* Drift Buffer Enabled */
+#define  PCI_CXL_FB_STAT_68B_FLIT         0x0020  /* CXL 68B Flit and VH Enabled */
+#define  PCI_CXL_FB_STAT_MULT_LOG_DEV     0x0040  /* CXL Multi Logical Device Enabled */
+#define  PCI_CXL_FB_STAT_256B_FLIT        0x2000  /* CXL Latency Optimized 256B Flit Enabled */
+#define  PCI_CXL_FB_STAT_PBR_FLIT         0x4000  /* CXL PBR Flit Enabled */
+#define PCI_CXL_FB_MOD_TS_DATA              0x10    /* CXL Flex Bus Port Received Modified TS Data Phase1 Register */
+#define PCI_CXL_FB_PORT_CAP2                0x14    /* CXL Flex Bus Port Capability2 Register */
+#define  PCI_CXL_FB_CAP2_NOP_HINT           0x01    /* NOP Hint Capable */
+#define PCI_CXL_FB_PORT_CTRL2               0x18    /* CXL Flex Bus Port Control2 Register */
+#define  PCI_CXL_FB_CTRL2_NOP_HINT          0x01    /* NOP Hint Enable */
+#define PCI_CXL_FB_PORT_STATUS2             0x1c    /* CXL Flex Bus Port Status2 Register */
+
+/* PCIe CXL Designated Vendor-Specific Capabilities for Multi-Logical Device */
+#define PCI_CXL_MLD_LEN     0x10
+#define PCI_CXL_MLD_NUM_LD  0xa
+#define PCI_CXL_MLD_MAX_LD  0x10
+
+/* PCIe CXL Designated Vendor-Specific Capabilities for Non-CXL Function Map */
+#define PCI_CXL_FUN_MAP_LEN     0x2c
+#define PCI_CXL_FUN_MAP_REG_0   0x0c
+#define PCI_CXL_FUN_MAP_REG_1   0x10
+#define PCI_CXL_FUN_MAP_REG_2   0x14
+#define PCI_CXL_FUN_MAP_REG_3   0x18
+#define PCI_CXL_FUN_MAP_REG_4   0x1c
+#define PCI_CXL_FUN_MAP_REG_5   0x20
+#define PCI_CXL_FUN_MAP_REG_6   0x24
+#define PCI_CXL_FUN_MAP_REG_7   0x28
 
 /* Access Control Services */
 #define PCI_ACS_CAP		0x04	/* ACS Capability Register */
@@ -1117,6 +1249,7 @@
 /* Single Root I/O Virtualization */
 #define PCI_IOV_CAP		0x04	/* SR-IOV Capability Register */
 #define  PCI_IOV_CAP_VFM	0x00000001 /* VF Migration Capable */
+#define  PCI_IOV_CAP_VF_10BIT_TAG_REQ 0x00000004 /* VF 10-Bit Tag Requester Supported */
 #define  PCI_IOV_CAP_IMN(x)	((x) >> 21) /* VF Migration Interrupt Message Number */
 #define PCI_IOV_CTRL		0x08	/* SR-IOV Control Register */
 #define  PCI_IOV_CTRL_VFE	0x0001	/* VF Enable */
@@ -1124,6 +1257,7 @@
 #define  PCI_IOV_CTRL_VFMIE	0x0004	/* VF Migration Interrupt Enable */
 #define  PCI_IOV_CTRL_MSE	0x0008	/* VF MSE */
 #define  PCI_IOV_CTRL_ARI	0x0010	/* ARI Capable Hierarchy */
+#define  PCI_IOV_CTRL_VF_10BIT_TAG_REQ_EN 0x0020 /* VF 10-Bit Tag Requester Enable */
 #define PCI_IOV_STATUS		0x0a	/* SR-IOV Status Register */
 #define  PCI_IOV_STATUS_MS	0x0001	/* VF Migration Status */
 #define PCI_IOV_INITIALVF	0x0c	/* Number of VFs that are initially associated */
@@ -1208,7 +1342,7 @@
 
 #define PCI_DPC_CAP		4	/* DPC Capability */
 #define  PCI_DPC_CAP_INT_MSG(x) ((x) & 0x1f)	/* DPC Interrupt Message Number */
-#define  PCI_DPC_CAP_RP_EXT	0x20		/* DPC Root Port Extentions */
+#define  PCI_DPC_CAP_RP_EXT	0x20		/* DPC Root Port Extensions */
 #define  PCI_DPC_CAP_TLP_BLOCK	0x40		/* DPC Poisoned TLP Egress Blocking */
 #define  PCI_DPC_CAP_SW_TRIGGER	0x80		/* DPC Software Trigger */
 #define  PCI_DPC_CAP_RP_LOG(x)	(((x) >> 8) & 0xf) /* DPC RP PIO Log Size */
@@ -1226,7 +1360,7 @@
 #define  PCI_DPC_STS_REASON(x) (((x) >> 1) & 0x3) /* DPC Trigger Reason */
 #define  PCI_DPC_STS_INT	0x08		/* DPC Interrupt Status */
 #define  PCI_DPC_STS_RP_BUSY	0x10		/* DPC Root Port Busy */
-#define  PCI_DPC_STS_TRIGGER_EXT(x) (((x) >> 5) & 0x3) /* Trigger Reason Extention */
+#define  PCI_DPC_STS_TRIGGER_EXT(x) (((x) >> 5) & 0x3) /* Trigger Reason Extension */
 #define  PCI_DPC_STS_PIO_FEP(x) (((x) >> 8) & 0x1f) /* DPC PIO First Error Pointer */
 #define PCI_DPC_SOURCE		10	/* DPC Source ID */
 
@@ -1236,13 +1370,27 @@
 #define  PCI_L1PM_SUBSTAT_CAP_PM_L11	0x2	/* PCI-PM L1.1 Supported */
 #define  PCI_L1PM_SUBSTAT_CAP_ASPM_L12	0x4	/* ASPM L1.2 Supported */
 #define  PCI_L1PM_SUBSTAT_CAP_ASPM_L11	0x8	/* ASPM L1.1 Supported */
-#define  PCI_L1PM_SUBSTAT_CAP_L1PM_SUPP	0x16	/* L1 PM Substates supported */
+#define  PCI_L1PM_SUBSTAT_CAP_L1PM_SUPP	0x10	/* L1 PM Substates supported */
 #define PCI_L1PM_SUBSTAT_CTL1	0x8	/* L1 PM Substate Control 1 */
 #define  PCI_L1PM_SUBSTAT_CTL1_PM_L12	0x1	/* PCI-PM L1.2 Enable */
 #define  PCI_L1PM_SUBSTAT_CTL1_PM_L11	0x2	/* PCI-PM L1.1 Enable */
 #define  PCI_L1PM_SUBSTAT_CTL1_ASPM_L12	0x4	/* ASPM L1.2 Enable */
 #define  PCI_L1PM_SUBSTAT_CTL1_ASPM_L11	0x8	/* ASPM L1.1 Enable */
 #define PCI_L1PM_SUBSTAT_CTL2	0xC	/* L1 PM Substate Control 2 */
+
+/* Data Object Exchange Extended Capability */
+#define PCI_DOE_CAP		0x4	/* DOE Capabilities Register */
+#define  PCI_DOE_CAP_INT_SUPP		0x1	/* Interrupt Support */
+#define  PCI_DOE_CAP_INT_MSG(x) (((x) >> 1) & 0x7ff) /* DOE Interrupt Message Number */
+#define PCI_DOE_CTL		0x8	/* DOE Control Register */
+#define  PCI_DOE_CTL_ABORT		0x1	/* DOE Abort */
+#define  PCI_DOE_CTL_INT		0x2	/* DOE Interrupt Enable */
+#define  PCI_DOE_CTL_GO			0x80000000 /* DOE Go */
+#define PCI_DOE_STS		0xC	/* DOE Status Register */
+#define  PCI_DOE_STS_BUSY		0x1	/* DOE Busy */
+#define  PCI_DOE_STS_INT		0x2	/* DOE Interrupt Status */
+#define  PCI_DOE_STS_ERROR		0x3	/* DOE Error */
+#define  PCI_DOE_STS_OBJECT_READY	0x80000000 /* Data Object Ready */
 
 /*
  * The PCI interface treats multi-function devices as independent
@@ -1392,4 +1540,10 @@
 
 /* I/O resource flags, compatible with <include/linux/ioport.h> */
 
+#define PCI_IORESOURCE_TYPE_BITS	0x00001f00
+#define PCI_IORESOURCE_IO		0x00000100
+#define PCI_IORESOURCE_MEM		0x00000200
+#define PCI_IORESOURCE_PREFETCH		0x00002000
+#define PCI_IORESOURCE_MEM_64		0x00100000
+#define PCI_IORESOURCE_IO_16BIT_ADDR	(1<<0)
 #define PCI_IORESOURCE_PCI_EA_BEI	(1<<5)

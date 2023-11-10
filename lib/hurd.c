@@ -73,6 +73,7 @@ static void
 hurd_init_dev(struct pci_dev *d)
 {
   d->aux = pci_malloc(d->access, sizeof(mach_port_t));
+  *((mach_port_t *) d->aux) = MACH_PORT_NULL;
 }
 
 /* Deallocate the port and free its space */
@@ -87,6 +88,27 @@ hurd_cleanup_dev(struct pci_dev *d)
   pci_mfree(d->aux);
 }
 
+static mach_port_t
+device_port_lookup(struct pci_dev *d)
+{
+  char server[NAME_MAX];
+  mach_port_t device_port = *((mach_port_t *) d->aux);
+
+  if (device_port != MACH_PORT_NULL)
+    return device_port;
+
+  snprintf(server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
+    _SERVERS_BUS_PCI, d->domain, d->bus, d->dev, d->func,
+    FILE_CONFIG_NAME);
+  device_port = file_name_lookup(server, 0, 0);
+
+  if (device_port == MACH_PORT_NULL)
+    d->access->error("Cannot find the PCI arbiter");
+
+  *((mach_port_t *) d->aux) = device_port;
+  return device_port;
+}
+
 /* Walk through the FS tree to see what is allowed for us */
 static void
 enum_devices(const char *parent, struct pci_access *a, int domain, int bus,
@@ -96,10 +118,6 @@ enum_devices(const char *parent, struct pci_access *a, int domain, int bus,
   DIR *dir;
   struct dirent *entry;
   char path[NAME_MAX];
-  char server[NAME_MAX];
-  uint32_t vd;
-  uint8_t ht;
-  mach_port_t device_port;
   struct pci_dev *d;
 
   dir = opendir(parent);
@@ -128,8 +146,8 @@ enum_devices(const char *parent, struct pci_access *a, int domain, int bus,
 	      if (closedir(dir) < 0)
 		a->warning("Cannot close directory: %s (%s)", parent,
 			   strerror(errno));
-	      a->error("Wrong directory name: %s (number expected) probably \
-                not connected to an arbiter", entry->d_name);
+	      a->error("Wrong directory name: %s (number expected) probably "
+		       "not connected to an arbiter", entry->d_name);
 	    }
 
 	  /*
@@ -154,8 +172,7 @@ enum_devices(const char *parent, struct pci_access *a, int domain, int bus,
 	      if (closedir(dir) < 0)
 		a->warning("Cannot close directory: %s (%s)", parent,
 			   strerror(errno));
-	      a->error("Wrong directory tree, probably not connected \
-                to an arbiter");
+	      a->error("Wrong directory tree, probably not connected to an arbiter");
 	    }
 
 	  enum_devices(path, a, domain, bus, dev, func, lev + 1);
@@ -167,31 +184,12 @@ enum_devices(const char *parent, struct pci_access *a, int domain, int bus,
 	    continue;
 
 	  /* We found an available virtual device, add it to our list */
-	  snprintf(server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
-		   _SERVERS_BUS_PCI, domain, bus, dev, func, entry->d_name);
-	  device_port = file_name_lookup(server, 0, 0);
-	  if (device_port == MACH_PORT_NULL)
-	    {
-	      if (closedir(dir) < 0)
-		a->warning("Cannot close directory: %s (%s)", parent,
-			   strerror(errno));
-	      a->error("Cannot open %s", server);
-	    }
-
 	  d = pci_alloc_dev(a);
-	  *((mach_port_t *) d->aux) = device_port;
+	  d->domain = domain;
 	  d->bus = bus;
 	  d->dev = dev;
 	  d->func = func;
 	  pci_link_dev(a, d);
-
-	  vd = pci_read_long(d, PCI_VENDOR_ID);
-	  ht = pci_read_byte(d, PCI_HEADER_TYPE);
-
-	  d->vendor_id = vd & 0xffff;
-	  d->device_id = vd >> 16U;
-	  d->known_fields = PCI_FILL_IDENT;
-	  d->hdrtype = ht;
 	}
     }
 
@@ -217,33 +215,27 @@ hurd_read(struct pci_dev *d, int pos, byte * buf, int len)
   int err;
   size_t nread;
   char *data;
-  mach_port_t device_port;
+  mach_port_t device_port = device_port_lookup(d);
 
-  nread = len;
-  device_port = *((mach_port_t *) d->aux);
   if (len > 4)
-    err = !pci_generic_block_read(d, pos, buf, nread);
-  else
+    return pci_generic_block_read(d, pos, buf, len);
+
+  data = (char *) buf;
+  err = pci_conf_read(device_port, pos, &data, &nread, len);
+
+  if (data != (char *) buf)
     {
-      data = (char *) buf;
-      err = pci_conf_read(device_port, pos, &data, &nread, len);
-
-      if (data != (char *) buf)
+      if (nread > (size_t) len)	/* Sanity check for bogus server.  */
 	{
-	  if (nread > (size_t) len)	/* Sanity check for bogus server.  */
-	    {
-	      vm_deallocate(mach_task_self(), (vm_address_t) data, nread);
-	      return 0;
-	    }
-
-	  memcpy(buf, data, nread);
 	  vm_deallocate(mach_task_self(), (vm_address_t) data, nread);
+	  return 0;
 	}
-    }
-  if (err)
-    return 0;
 
-  return nread == (size_t) len;
+      memcpy(buf, data, nread);
+      vm_deallocate(mach_task_self(), (vm_address_t) data, nread);
+    }
+
+  return !err && nread == (size_t) len;
 }
 
 /*
@@ -256,33 +248,29 @@ hurd_write(struct pci_dev *d, int pos, byte * buf, int len)
 {
   int err;
   size_t nwrote;
-  mach_port_t device_port;
+  mach_port_t device_port = device_port_lookup(d);
 
-  nwrote = len;
-  device_port = *((mach_port_t *) d->aux);
   if (len > 4)
-    err = !pci_generic_block_write(d, pos, buf, len);
-  else
-    err = pci_conf_write(device_port, pos, (char *) buf, len, &nwrote);
-  if (err)
-    return 0;
+    return pci_generic_block_write(d, pos, buf, len);
 
-  return nwrote == (size_t) len;
+  err = pci_conf_write(device_port, pos, (char *) buf, len, &nwrote);
+
+  return !err && nwrote == (size_t) len;
 }
 
 /* Get requested info from the server */
 
-static void
+static int
 hurd_fill_regions(struct pci_dev *d)
 {
-  mach_port_t device_port = *((mach_port_t *) d->aux);
+  mach_port_t device_port = device_port_lookup(d);
   struct pci_bar regions[6];
   char *buf = (char *) &regions;
   size_t size = sizeof(regions);
 
   int err = pci_get_dev_regions(device_port, &buf, &size);
   if (err)
-    return;
+    return 0;
 
   if ((char *) &regions != buf)
     {
@@ -290,7 +278,7 @@ hurd_fill_regions(struct pci_dev *d)
       if (size > sizeof(regions))
 	{
 	  vm_deallocate(mach_task_self(), (vm_address_t) buf, size);
-	  return;
+	  return 0;
 	}
 
       memcpy(&regions, buf, size);
@@ -307,22 +295,23 @@ hurd_fill_regions(struct pci_dev *d)
       d->base_addr[i] |= regions[i].is_64 << 2;
       d->base_addr[i] |= regions[i].is_prefetchable << 3;
 
-      if (flags & PCI_FILL_SIZES)
-	d->size[i] = regions[i].size;
+      d->size[i] = regions[i].size;
     }
+
+  return 1;
 }
 
-static void
+static int
 hurd_fill_rom(struct pci_dev *d)
 {
   struct pci_xrom_bar rom;
-  mach_port_t device_port = *((mach_port_t *) d->aux);
+  mach_port_t device_port = device_port_lookup(d);
   char *buf = (char *) &rom;
   size_t size = sizeof(rom);
 
   int err = pci_get_dev_rom(device_port, &buf, &size);
   if (err)
-    return;
+    return 0;
 
   if ((char *) &rom != buf)
     {
@@ -330,7 +319,7 @@ hurd_fill_rom(struct pci_dev *d)
       if (size > sizeof(rom))
 	{
 	  vm_deallocate(mach_task_self(), (vm_address_t) buf, size);
-	  return;
+	  return 0;
 	}
 
       memcpy(&rom, buf, size);
@@ -339,28 +328,28 @@ hurd_fill_rom(struct pci_dev *d)
 
   d->rom_base_addr = rom.base_addr;
   d->rom_size = rom.size;
+
+  return 1;
 }
 
-static unsigned int
+static void
 hurd_fill_info(struct pci_dev *d, unsigned int flags)
 {
-  unsigned int done = 0;
-
   if (!d->access->buscentric)
     {
-      if (flags & (PCI_FILL_BASES | PCI_FILL_SIZES))
+      if (want_fill(d, flags, PCI_FILL_BASES | PCI_FILL_SIZES))
 	{
-	  hurd_fill_regions(d);
-	  done |= PCI_FILL_BASES | PCI_FILL_SIZES;
+	  if (hurd_fill_regions(d))
+	    clear_fill(d, PCI_FILL_BASES | PCI_FILL_SIZES);
 	}
-      if (flags & PCI_FILL_ROM_BASE)
+      if (want_fill(d, flags, PCI_FILL_ROM_BASE))
 	{
-	  hurd_fill_rom(d);
-	  done |= PCI_FILL_ROM_BASE;
+	  if (hurd_fill_rom(d))
+	    clear_fill(d, PCI_FILL_ROM_BASE);
 	}
     }
 
-  return done | pci_generic_fill_info(d, flags & ~done);
+  pci_generic_fill_info(d, flags);
 }
 
 struct pci_methods pm_hurd = {
