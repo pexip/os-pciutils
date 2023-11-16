@@ -1,3 +1,9 @@
+pciutils (1:3.9.0-4pexip1) pexip-bookworm; urgency=medium
+
+  * Initial bookworm build
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Thu, 16 Nov 2023 10:18:58 +0000
+
 pciutils (1:3.9.0-4) unstable; urgency=medium
 
   * Do not trim debian/changelog.
