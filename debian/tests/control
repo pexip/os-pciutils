@@ -1,3 +1,9 @@
-Tests: test-libpci
-Restrictions: allow-stderr superficial
-Depends: build-essential, libpci-dev, pkg-config
+Tests:
+ test-libpci
+Restrictions:
+ allow-stderr
+ superficial
+Depends:
+ build-essential,
+ libpci-dev,
+ pkgconf,

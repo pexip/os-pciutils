@@ -1,0 +1,54 @@
+From 4f2abadf015dd730d9c42a10ca5db6ed3bd6b9d2 Mon Sep 17 00:00:00 2001
+From: Samuel Thibault <samuel.thibault@gnu.org>
+Date: Mon, 25 Nov 2024 13:54:11 +0100
+Subject: [PATCH] Extend the GNU/Hurd back-end to work on 64-bit systems
+
+Origin: upstream, commit:4f2abadf015dd730d9c42a10ca5db6ed3bd6b9d2
+Forwarded: not-needed
+---
+ lib/hurd.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/lib/hurd.c b/lib/hurd.c
+index 84860a7..02bda95 100644
+--- a/lib/hurd.c
++++ b/lib/hurd.c
+@@ -216,7 +216,7 @@ static int
+ hurd_read(struct pci_dev *d, int pos, byte * buf, int len)
+ {
+   int err;
+-  size_t nread;
++  mach_msg_type_number_t nread;
+   char *data;
+   mach_port_t device_port = device_port_lookup(d);
+ 
+@@ -250,7 +250,7 @@ static int
+ hurd_write(struct pci_dev *d, int pos, byte * buf, int len)
+ {
+   int err;
+-  size_t nwrote;
++  vm_size_t nwrote;
+   mach_port_t device_port = device_port_lookup(d);
+ 
+   if (len > 4)
+@@ -269,7 +269,7 @@ hurd_fill_regions(struct pci_dev *d)
+   mach_port_t device_port = device_port_lookup(d);
+   struct pci_bar regions[6];
+   char *buf = (char *) &regions;
+-  size_t size = sizeof(regions);
++  mach_msg_type_number_t size = sizeof(regions);
+ 
+   int err = pci_get_dev_regions(device_port, &buf, &size);
+   if (err)
+@@ -310,7 +310,7 @@ hurd_fill_rom(struct pci_dev *d)
+   struct pci_xrom_bar rom;
+   mach_port_t device_port = device_port_lookup(d);
+   char *buf = (char *) &rom;
+-  size_t size = sizeof(rom);
++  mach_msg_type_number_t size = sizeof(rom);
+ 
+   int err = pci_get_dev_rom(device_port, &buf, &size);
+   if (err)
+-- 
+2.47.2
+

@@ -3,11 +3,14 @@
  *
  *	Copyright (c) 1997--2018 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include "lib/pci.h"
 #include "lib/sysdep.h"
+#include "bitops.h"
 
 /*
  * gcc predefines macro __MINGW32__ for all MinGW targets.
@@ -21,11 +24,12 @@
 /*
  * On Windows only MinGW 3.0 and higher versions provides <getopt.h>
  * header file. Older MinGW versions and MSVC do not have it.
+ * DJGPP does not provide <getopt.h>.
  */
-#if defined(PCI_OS_WINDOWS) && !(defined(__MINGW32_MAJOR_VERSION) && __MINGW32_MAJOR_VERSION >= 3)
+#if defined(PCI_OS_DJGPP) || (defined(PCI_OS_WINDOWS) && !(defined(__MINGW32_MAJOR_VERSION) && __MINGW32_MAJOR_VERSION >= 3))
 #include "compat/getopt.h"
 #else
-#include <unistd.h>
+#include <getopt.h>
 #endif
 
 #define PCIUTILS_VERSION PCILIB_VERSION

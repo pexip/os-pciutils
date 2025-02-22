@@ -3,7 +3,9 @@
  *
  *      Copyright (c) 2021 Pali Rohár <pali@kernel.org>
  *
- *      Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <windows.h>
@@ -15,6 +17,7 @@
 #include <wchar.h> /* for wcslen(), wcscpy() */
 
 #include "internal.h"
+#include "win32-helpers.h"
 
 /* Unfortunately MinGW32 toolchain does not provide these cfgmgr32 constants. */
 
@@ -78,10 +81,17 @@
 #define fMD_MEMORY_BAR 0x0080
 #endif
 
+#ifndef mMD_Prefetchable
+#define mMD_Prefetchable fMD_Prefetchable
+#endif
+
 /*
  * Unfortunately MinGW32 toolchain does not provide import library for these
  * cfgmgr32.dll functions. So resolve pointers to these functions at runtime.
+ * MinGW-w64 toolchain provides them also in 32-bit mode.
  */
+
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
 
 #ifdef CM_Get_DevNode_Registry_PropertyA
 #undef CM_Get_DevNode_Registry_PropertyA
@@ -121,6 +131,8 @@ resolve_cfgmgr32_functions(void)
 
   return TRUE;
 }
+
+#endif
 
 /*
  * cfgmgr32.dll uses custom non-Win32 error numbers which are unsupported by
@@ -211,32 +223,6 @@ cr_strerror(CONFIGRET cr_error_id)
   return cr_errors[cr_error_id];
 }
 
-static const char *
-win32_strerror(DWORD win32_error_id)
-{
-  /*
-   * Use static buffer which is large enough.
-   * Hopefully no Win32 API error message string is longer than 4 kB.
-   */
-  static char buffer[4096];
-  DWORD len;
-
-  len = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, win32_error_id, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), buffer, sizeof(buffer), NULL);
-
-  /* FormatMessage() automatically appends ".\r\n" to the error message. */
-  if (len && buffer[len-1] == '\n')
-    buffer[--len] = '\0';
-  if (len && buffer[len-1] == '\r')
-    buffer[--len] = '\0';
-  if (len && buffer[len-1] == '.')
-    buffer[--len] = '\0';
-
-  if (!len)
-    sprintf(buffer, "Unknown Win32 error %lu", win32_error_id);
-
-  return buffer;
-}
-
 static int
 fmt_validate(const char *s, int len, const char *fmt)
 {
@@ -263,56 +249,6 @@ seq_xdigit_validate(const char *s, int mult, int min)
       return 0;
 
   return 1;
-}
-
-static BOOL
-is_non_nt_system(void)
-{
-  OSVERSIONINFOA version;
-  version.dwOSVersionInfoSize = sizeof(version);
-  return GetVersionExA(&version) && version.dwPlatformId < VER_PLATFORM_WIN32_NT;
-}
-
-static BOOL
-is_32bit_on_win8_64bit_system(void)
-{
-#ifdef _WIN64
-  return FALSE;
-#else
-  BOOL (WINAPI *MyIsWow64Process)(HANDLE, PBOOL);
-  OSVERSIONINFOA version;
-  HMODULE kernel32;
-  BOOL is_wow64;
-
-  /* Check for Windows 8 (NT 6.2). */
-  version.dwOSVersionInfoSize = sizeof(version);
-  if (!GetVersionExA(&version) ||
-      version.dwPlatformId != VER_PLATFORM_WIN32_NT ||
-      version.dwMajorVersion < 6 ||
-      (version.dwMajorVersion == 6 && version.dwMinorVersion < 2))
-    return FALSE;
-
-  /*
-   * Check for 64-bit system via IsWow64Process() function exported
-   * from 32-bit kernel32.dll library available on the 64-bit systems.
-   * Resolve pointer to this function at runtime as this code path is
-   * primary running on 32-bit systems where are not available 64-bit
-   * functions.
-   */
-
-  kernel32 = GetModuleHandleA("kernel32.dll");
-  if (!kernel32)
-    return FALSE;
-
-  MyIsWow64Process = (void *)GetProcAddress(kernel32, "IsWow64Process");
-  if (!MyIsWow64Process)
-    return FALSE;
-
-  if (!MyIsWow64Process(GetCurrentProcess(), &is_wow64))
-    return FALSE;
-
-  return is_wow64;
-#endif
 }
 
 static LPWSTR
@@ -401,9 +337,12 @@ get_driver_path_for_service(struct pci_access *a, LPCWSTR service_name, SC_HANDL
   SERVICE_STATUS service_status;
   SC_HANDLE service = NULL;
   char *driver_path = NULL;
+  int trim_system32 = 0;
   UINT systemroot_len;
   int driver_path_len;
+  UINT system32_len;
   HMODULE kernel32;
+  WCHAR *trim_ptr;
   DWORD error;
 
   service = OpenServiceW(manager, service_name, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS);
@@ -464,36 +403,42 @@ retry_service_config:
    */
 
   /*
-   * Old Windows versions return path to NT SystemRoot namespace via
-   * GetWindowsDirectoryW() function. New Windows versions via
-   * GetSystemWindowsDirectoryW(). GetSystemWindowsDirectoryW() is not
-   * provided in old Windows versions, so use GetProcAddress() for
-   * compatibility with all Windows versions.
+   * GetSystemWindowsDirectoryW() returns path to NT SystemRoot namespace.
+   * Alternativelly path to NT SystemRoot namespace can be constructed by
+   * GetSystemDirectoryW() by trimming "\\system32" from the end of path.
+   * GetSystemWindowsDirectoryW() is not provided in old Windows versions,
+   * so use GetProcAddress() for compatibility with all Windows versions.
    */
   kernel32 = GetModuleHandleW(L"kernel32.dll");
   if (kernel32)
     get_system_root_path = (void *)GetProcAddress(kernel32, "GetSystemWindowsDirectoryW");
-  if (!get_system_root_path)
-    get_system_root_path = &GetWindowsDirectoryW;
-
-  systemroot_len = get_system_root_path(NULL, 0);
+  else
+    {
+      get_system_root_path = &GetSystemDirectoryW;
+      trim_system32 = 1;
+    }
 
   if (!service_config->lpBinaryPathName || !service_config->lpBinaryPathName[0])
     {
-      /* No ImagePath is specified, NT kernel assumes implicit kernel driver path by service name. */
-      service_image_path = pci_malloc(a, sizeof(WCHAR) * (systemroot_len + sizeof("\\System32\\drivers\\")-1 + wcslen(service_name) + sizeof(".sys")-1 + 1));
-      systemroot_len = get_system_root_path(service_image_path, systemroot_len+1);
-      if (systemroot_len && service_image_path[systemroot_len-1] != L'\\')
-        service_image_path[systemroot_len++] = L'\\';
-      wcscpy(service_image_path + systemroot_len, L"System32\\drivers\\");
-      wcscpy(service_image_path + systemroot_len + sizeof("System32\\drivers\\")-1, service_name);
-      wcscpy(service_image_path + systemroot_len + sizeof("System32\\drivers\\")-1 + wcslen(service_name), L".sys");
+      /* No ImagePath is specified, NT kernel assumes implicit kernel driver path by service name, which is relative to "\\system32\\drivers". */
+      /* GetSystemDirectoryW() returns path to "\\system32" directory on all Windows versions. */
+      system32_len = GetSystemDirectoryW(NULL, 0); /* Returns number of WCHARs plus 1 for nul-term. */
+      service_image_path = pci_malloc(a, sizeof(WCHAR) * (system32_len + sizeof("\\drivers\\")-1 + wcslen(service_name) + sizeof(".sys")-1));
+      system32_len = GetSystemDirectoryW(service_image_path, system32_len); /* Now it returns number of WCHARs without nul-term. */
+      if (system32_len && service_image_path[system32_len-1] != L'\\')
+        service_image_path[system32_len++] = L'\\';
+      wcscpy(service_image_path + system32_len, L"drivers\\");
+      wcscpy(service_image_path + system32_len + sizeof("drivers\\")-1, service_name);
+      wcscpy(service_image_path + system32_len + sizeof("drivers\\")-1 + wcslen(service_name), L".sys");
     }
   else if (wcsncmp(service_config->lpBinaryPathName, L"\\SystemRoot\\", sizeof("\\SystemRoot\\")-1) == 0)
     {
-      /* ImagePath is in NT SystemRoot namespace, convert to Win32 path via GetSystemWindowsDirectoryW()/GetWindowsDirectoryW(). */
+      /* ImagePath is in NT SystemRoot namespace, convert to Win32 path via GetSystemWindowsDirectoryW()/GetSystemDirectoryW(). */
+      systemroot_len = get_system_root_path(NULL, 0); /* Returns number of WCHARs plus 1 for nul-term. */
       service_image_path = pci_malloc(a, sizeof(WCHAR) * (systemroot_len + wcslen(service_config->lpBinaryPathName) - (sizeof("\\SystemRoot")-1)));
-      systemroot_len = get_system_root_path(service_image_path, systemroot_len+1);
+      systemroot_len = get_system_root_path(service_image_path, systemroot_len); /* Now it returns number of WCHARs without nul-term. */
+      if (trim_system32 && systemroot_len && (trim_ptr = wcsrchr(service_image_path, L'\\')) != NULL)
+        systemroot_len = trim_ptr - service_image_path;
       if (systemroot_len && service_image_path[systemroot_len-1] != L'\\')
         service_image_path[systemroot_len++] = L'\\';
       wcscpy(service_image_path + systemroot_len, service_config->lpBinaryPathName + sizeof("\\SystemRoot\\")-1);
@@ -523,9 +468,12 @@ retry_service_config:
     }
   else if (service_config->lpBinaryPathName[0] != L'\\')
     {
-      /* ImagePath is relative to the NT SystemRoot namespace, convert to Win32 path via GetSystemWindowsDirectoryW()/GetWindowsDirectoryW(). */
-      service_image_path = pci_malloc(a, sizeof(WCHAR) * (systemroot_len + sizeof("\\") + wcslen(service_config->lpBinaryPathName)));
-      systemroot_len = get_system_root_path(service_image_path, systemroot_len+1);
+      /* ImagePath is relative to the NT SystemRoot namespace, convert to Win32 path via GetSystemWindowsDirectoryW()/GetSystemDirectoryW(). */
+      systemroot_len = get_system_root_path(NULL, 0); /* Returns number of WCHARs plus 1 for nul-term. */
+      service_image_path = pci_malloc(a, sizeof(WCHAR) * (systemroot_len + sizeof("\\")-1 + wcslen(service_config->lpBinaryPathName)));
+      systemroot_len = get_system_root_path(service_image_path, systemroot_len); /* Now it returns number of WCHARs without nul-term. */
+      if (trim_system32 && systemroot_len && (trim_ptr = wcsrchr(service_image_path, L'\\')) != NULL)
+        systemroot_len = trim_ptr - service_image_path;
       if (systemroot_len && service_image_path[systemroot_len-1] != L'\\')
         service_image_path[systemroot_len++] = L'\\';
       wcscpy(service_image_path + systemroot_len, service_config->lpBinaryPathName);
@@ -712,7 +660,7 @@ retry_subname:
             {
               error = GetLastError();
               if (error == 0)
-                a->warning("Cannot read driver %s key for PCI device %s: DevLoader key is stored as unknown type 0x%lx.", subname, devinst_id, unkn_reg_type);
+                a->warning("Cannot read driver %s key for PCI device %s: %s key is stored as unknown type 0x%lx.", subname, devinst_id, subname, unkn_reg_type);
               else if (error != ERROR_FILE_NOT_FOUND)
                 a->warning("Cannot read driver %s key for PCI device %s: %s.", subname, devinst_id, win32_strerror(error));
               else if (strcmp(subname, "minivdd") == 0)
@@ -819,7 +767,7 @@ get_device_driver_path(struct pci_dev *d, SC_HANDLE manager, BOOL manager_suppor
   LPWSTR service_name = NULL;
   ULONG devinst_id_len = 0;
   char *driver_path = NULL;
-  DEVINST devinst = (DEVINST)d->aux;
+  DEVINST devinst = (DEVINST)d->backend_data;
   ULONG problem = 0;
   ULONG status = 0;
   HKEY key = NULL;
@@ -900,6 +848,22 @@ fill_drivers(struct pci_access *a)
     CloseServiceHandle(manager);
 }
 
+static const char *
+res_id_to_str(RESOURCEID res_id)
+{
+  static char hex_res_id[sizeof("0xffffffff")];
+
+  if (res_id == ResType_IO)
+    return "IO";
+  else if (res_id == ResType_Mem)
+    return "MEM";
+  else if (res_id == ResType_IRQ)
+    return "IRQ";
+
+  sprintf(hex_res_id, "0x%lx", res_id);
+  return hex_res_id;
+}
+
 static void
 fill_resources(struct pci_dev *d, DEVINST devinst, DEVINSTID_A devinst_id)
 {
@@ -965,7 +929,7 @@ fill_resources(struct pci_dev *d, DEVINST devinst, DEVINSTID_A devinst_id)
        * application using the hardware resource APIs. For example: An AMD64
        * application for AMD64 systems.
        */
-      if (cr == CR_CALL_NOT_IMPLEMENTED && is_32bit_on_win8_64bit_system())
+      if (cr == CR_CALL_NOT_IMPLEMENTED && win32_is_32bit_on_win8_64bit_system())
         {
           static BOOL warn_once = FALSE;
           if (!warn_once)
@@ -980,7 +944,7 @@ fill_resources(struct pci_dev *d, DEVINST devinst, DEVINSTID_A devinst_id)
     }
 
   bar_res_count = 0;
-  non_nt_system = is_non_nt_system();
+  non_nt_system = win32_is_non_nt_system();
 
   is_bar_res = TRUE;
   if (non_nt_system)
@@ -1029,16 +993,20 @@ fill_resources(struct pci_dev *d, DEVINST devinst, DEVINSTID_A devinst_id)
 
       prev_res_des = res_des;
 
+      /* Skip other resources early */
+      if (res_id != ResType_IO && res_id != ResType_Mem && res_id != ResType_IRQ)
+        continue;
+
       cr = CM_Get_Res_Des_Data_Size(&res_des_data_size, res_des, 0);
       if (cr != CR_SUCCESS)
         {
-          a->warning("Cannot retrieve resource data of PCI device %s: %s.", devinst_id, cr_strerror(cr));
+          a->warning("Cannot retrieve %s resource data of PCI device %s: %s.", res_id_to_str(res_id), devinst_id, cr_strerror(cr));
           continue;
         }
 
       if (!res_des_data_size)
         {
-          a->warning("Cannot retrieve resource data of PCI device %s: %s.", devinst_id, "Empty data");
+          a->warning("Cannot retrieve %s resource data of PCI device %s: %s.", res_id_to_str(res_id), devinst_id, "Empty data");
           continue;
         }
 
@@ -1046,7 +1014,7 @@ fill_resources(struct pci_dev *d, DEVINST devinst, DEVINSTID_A devinst_id)
       cr = CM_Get_Res_Des_Data(res_des, res_des_data, res_des_data_size, 0);
       if (cr != CR_SUCCESS)
         {
-          a->warning("Cannot retrieve resource data of PCI device %s: %s.", devinst_id, cr_strerror(cr));
+          a->warning("Cannot retrieve %s resource data of PCI device %s: %s.", res_id_to_str(res_id), devinst_id, cr_strerror(cr));
           pci_mfree(res_des_data);
           continue;
         }
@@ -1531,8 +1499,9 @@ scan_devinst_id(struct pci_access *a, DEVINSTID_A devinst_id)
 
   d = pci_get_dev(a, domain, bus, dev, func);
   pci_link_dev(a, d);
-  d->no_config_access = 1;
-  d->aux = (void *)devinst;
+  if (!d->access->backend_data)
+    d->no_config_access = 1;
+  d->backend_data = (void *)devinst;
 
   /* Parse device id part of devinst id and fill details into pci_dev. */
   if (!a->buscentric)
@@ -1546,7 +1515,7 @@ scan_devinst_id(struct pci_access *a, DEVINSTID_A devinst_id)
     fill_resources(d, devinst, devinst_id);
 
   /*
-   * Set parent field to cfgmgr32 parent devinst handle and aux field to current
+   * Set parent field to cfgmgr32 parent devinst handle and backend_data field to current
    * devinst handle. At later stage in win32_cfgmgr32_scan() when all pci_dev
    * devices are linked, change every devinst handle by pci_dev.
    */
@@ -1571,11 +1540,13 @@ win32_cfgmgr32_scan(struct pci_access *a)
   struct pci_dev *d;
   CONFIGRET cr;
 
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
   if (!resolve_cfgmgr32_functions())
     {
       a->warning("Required cfgmgr32.dll functions are unavailable.");
       return;
     }
+#endif
 
   /*
    * Explicitly initialize size to zero as wine cfgmgr32 implementation does not
@@ -1618,7 +1589,7 @@ win32_cfgmgr32_scan(struct pci_access *a)
       for (d1 = a->devices; d1; d1 = d1->next)
         {
           for (d2 = a->devices; d2; d2 = d2->next)
-            if ((DEVINST)d1->parent == (DEVINST)d2->aux)
+            if ((DEVINST)d1->parent == (DEVINST)d2->backend_data)
               break;
           d1->parent = d2;
           if (d1->parent)
@@ -1626,11 +1597,17 @@ win32_cfgmgr32_scan(struct pci_access *a)
         }
     }
 
-  /* devinst stored in ->aux is not needed anymore, clear it. */
+  /* devinst stored in ->backend_data is not needed anymore, clear it. */
   for (d = a->devices; d; d = d->next)
-    d->aux = NULL;
+    d->backend_data = NULL;
 
   pci_mfree(devinst_id_list);
+}
+
+static void
+win32_cfgmgr32_config(struct pci_access *a)
+{
+  pci_define_param(a, "win32.cfgmethod", "auto", "PCI config space access method");
 }
 
 static int
@@ -1639,11 +1616,13 @@ win32_cfgmgr32_detect(struct pci_access *a)
   ULONG devinst_id_list_size;
   CONFIGRET cr;
 
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
   if (!resolve_cfgmgr32_functions())
     {
       a->debug("Required cfgmgr32.dll functions are unavailable.");
       return 0;
     }
+#endif
 
   /*
    * Explicitly initialize size to zero as wine cfgmgr32 implementation does not
@@ -1666,43 +1645,119 @@ win32_cfgmgr32_detect(struct pci_access *a)
 }
 
 static void
-win32_cfgmgr32_fill_info(struct pci_dev *d UNUSED, unsigned int flags UNUSED)
+win32_cfgmgr32_fill_info(struct pci_dev *d, unsigned int flags)
 {
   /*
-   * All available flags were filled by win32_cfgmgr32_scan()
-   * and reading config space is not supported via cfgmgr32.
+   * All available flags were filled by win32_cfgmgr32_scan().
+   * Filling more flags is possible only from config space.
    */
+  if (!d->access->backend_data)
+    return;
+
+  pci_generic_fill_info(d, flags);
 }
 
 static int
-win32_cfgmgr32_write(struct pci_dev *d UNUSED, int pos UNUSED, byte *buf UNUSED, int len UNUSED)
+win32_cfgmgr32_read(struct pci_dev *d, int pos, byte *buf, int len)
 {
-  /* Writing to config space is not supported via cfgmgr32. */
-  return 0;
+  struct pci_access *a = d->access;
+  struct pci_access *acfg = a->backend_data;
+  struct pci_dev *dcfg = d->backend_data;
+
+  if (!acfg)
+    return pci_emulated_read(d, pos, buf, len);
+
+  if (!dcfg)
+    d->backend_data = dcfg = pci_get_dev(acfg, d->domain, d->bus, d->dev, d->func);
+
+  return pci_read_block(dcfg, pos, buf, len);
+}
+
+static int
+win32_cfgmgr32_write(struct pci_dev *d, int pos, byte *buf, int len)
+{
+  struct pci_access *a = d->access;
+  struct pci_access *acfg = a->backend_data;
+  struct pci_dev *dcfg = d->backend_data;
+
+  if (!acfg)
+    return 0;
+
+  if (!dcfg)
+    d->backend_data = dcfg = pci_get_dev(acfg, d->domain, d->bus, d->dev, d->func);
+
+  return pci_write_block(dcfg, pos, buf, len);
 }
 
 static void
-win32_cfgmgr32_init(struct pci_access *a UNUSED)
+win32_cfgmgr32_cleanup_dev(struct pci_dev *d)
 {
+  struct pci_dev *dcfg = d->backend_data;
+
+  if (dcfg)
+    pci_free_dev(dcfg);
 }
 
 static void
-win32_cfgmgr32_cleanup(struct pci_access *a UNUSED)
+win32_cfgmgr32_init(struct pci_access *a)
 {
+  char *cfgmethod = pci_get_param(a, "win32.cfgmethod");
+  struct pci_access *acfg;
+
+  if (strcmp(cfgmethod, "") == 0 ||
+      strcmp(cfgmethod, "auto") == 0)
+    {
+      acfg = pci_clone_access(a);
+      acfg->method = PCI_ACCESS_AUTO;
+    }
+  else if (strcmp(cfgmethod, "none") == 0 ||
+           strcmp(cfgmethod, "win32-cfgmgr32") == 0)
+    {
+      if (a->writeable)
+        a->error("Write access requested but option win32.cfgmethod was not set.");
+      return;
+    }
+  else
+    {
+      int m = pci_lookup_method(cfgmethod);
+      if (m < 0)
+        a->error("Option win32.cfgmethod is set to an unknown access method \"%s\".", cfgmethod);
+      acfg = pci_clone_access(a);
+      acfg->method = m;
+    }
+
+  a->debug("Loading config space access method...\n");
+  if (!pci_init_internal(acfg, PCI_ACCESS_WIN32_CFGMGR32))
+    {
+      pci_cleanup(acfg);
+      a->debug("Cannot find any working config space access method.\n");
+      if (a->writeable)
+        a->error("Write access requested but no usable access method found.");
+      return;
+    }
+
+  a->backend_data = acfg;
+}
+
+static void
+win32_cfgmgr32_cleanup(struct pci_access *a)
+{
+  struct pci_access *acfg = a->backend_data;
+
+  if (acfg)
+    pci_cleanup(acfg);
 }
 
 struct pci_methods pm_win32_cfgmgr32 = {
-  "win32-cfgmgr32",
-  "Win32 device listing via Configuration Manager",
-  NULL,                                 /* config */
-  win32_cfgmgr32_detect,
-  win32_cfgmgr32_init,
-  win32_cfgmgr32_cleanup,
-  win32_cfgmgr32_scan,
-  win32_cfgmgr32_fill_info,
-  pci_emulated_read,                    /* Reading of config space is not supported via cfgmgr32. */
-  win32_cfgmgr32_write,
-  NULL,                                 /* read_vpd */
-  NULL,                                 /* init_dev */
-  NULL,                                 /* cleanup_dev */
+  .name = "win32-cfgmgr32",
+  .help = "Win32 device listing via Configuration Manager",
+  .config = win32_cfgmgr32_config,
+  .detect = win32_cfgmgr32_detect,
+  .init = win32_cfgmgr32_init,
+  .cleanup = win32_cfgmgr32_cleanup,
+  .scan = win32_cfgmgr32_scan,
+  .fill_info = win32_cfgmgr32_fill_info,
+  .read = win32_cfgmgr32_read,
+  .write = win32_cfgmgr32_write,
+  .cleanup_dev = win32_cfgmgr32_cleanup_dev,
 };

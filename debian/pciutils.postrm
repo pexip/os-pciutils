@@ -7,7 +7,7 @@ case "$1" in
 purge)
   for ext in new neww old
   do
-    rm -f /usr/share/misc/pci.ids.$ext
+    rm -f $DPKG_ROOT/usr/share/misc/pci.ids.$ext
   done
   ;;
 remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

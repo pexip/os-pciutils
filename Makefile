@@ -1,11 +1,11 @@
 # Makefile for The PCI Utilities
-# (c) 1998--2022 Martin Mares <mj@ucw.cz>
+# (c) 1998--2024 Martin Mares <mj@ucw.cz>
 
 OPT=-O2
 CFLAGS=$(OPT) -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes
 
-VERSION=3.9.0
-DATE=2022-11-20
+VERSION=3.13.0
+DATE=2024-05-30
 
 # Host OS and release (override if you are cross-compiling)
 HOST=
@@ -47,6 +47,7 @@ INSTALL=install
 DIRINSTALL=install -d
 STRIP=-s
 ifdef CROSS_COMPILE
+STRIP+=--strip-program $(CROSS_COMPILE)strip
 CC=$(CROSS_COMPILE)gcc
 else
 CC=cc
@@ -64,9 +65,15 @@ LIBNAME=libpci
 PCIINC=lib/config.h lib/header.h lib/pci.h lib/types.h lib/sysdep.h
 PCIINC_INS=lib/config.h lib/header.h lib/pci.h lib/types.h
 
+UTILINC=pciutils.h bitops.h $(PCIINC)
+
+LMR=margin_hw.o margin.o margin_log.o margin_results.o margin_args.o
+LMROBJS=$(addprefix lmr/,$(LMR))
+LMRINC=lmr/lmr.h $(UTILINC)
+
 export
 
-all: lib/$(PCIIMPLIB) lspci$(EXEEXT) setpci$(EXEEXT) example$(EXEEXT) lspci.8 setpci.8 pcilib.7 pci.ids.5 update-pciids update-pciids.8 $(PCI_IDS)
+all: lib/$(PCIIMPLIB) lspci$(EXEEXT) setpci$(EXEEXT) example$(EXEEXT) lspci.8 setpci.8 pcilib.7 pci.ids.5 update-pciids update-pciids.8 $(PCI_IDS) pcilmr$(EXEEXT) pcilmr.8
 
 lib/$(PCIIMPLIB): $(PCIINC) force
 	$(MAKE) -C lib all
@@ -85,7 +92,7 @@ endif
 lspci$(EXEEXT): lspci.o ls-vpd.o ls-caps.o ls-caps-vendor.o ls-ecaps.o ls-kernel.o ls-tree.o ls-map.o $(COMMON) lib/$(PCIIMPLIB)
 setpci$(EXEEXT): setpci.o $(COMMON) lib/$(PCIIMPLIB)
 
-LSPCIINC=lspci.h pciutils.h $(PCIINC)
+LSPCIINC=lspci.h $(UTILINC)
 lspci.o: lspci.c $(LSPCIINC)
 ls-vpd.o: ls-vpd.c $(LSPCIINC)
 ls-caps.o: ls-caps.c $(LSPCIINC)
@@ -94,23 +101,29 @@ ls-kernel.o: ls-kernel.c $(LSPCIINC)
 ls-tree.o: ls-tree.c $(LSPCIINC)
 ls-map.o: ls-map.c $(LSPCIINC)
 
-setpci.o: setpci.c pciutils.h $(PCIINC)
-common.o: common.c pciutils.h $(PCIINC)
+setpci.o: setpci.c $(UTILINC)
+common.o: common.c $(UTILINC)
 compat/getopt.o: compat/getopt.c
 
 lspci$(EXEEXT): LDLIBS+=$(LIBKMOD_LIBS)
-ls-kernel.o: CFLAGS+=$(LIBKMOD_CFLAGS)
+ls-kernel.o: override CFLAGS+=$(LIBKMOD_CFLAGS)
 
 update-pciids: update-pciids.sh
-	sed <$< >$@ "s@^DEST=.*@DEST=$(if $(IDSDIR),$(IDSDIR)/,)$(PCI_IDS)@;s@^PCI_COMPRESSED_IDS=.*@PCI_COMPRESSED_IDS=$(PCI_COMPRESSED_IDS)@"
+	sed <$< >$@ "s@^DEST=.*@DEST=$(if $(IDSDIR),$(IDSDIR)/,)$(PCI_IDS)@;s@^PCI_COMPRESSED_IDS=.*@PCI_COMPRESSED_IDS=$(PCI_COMPRESSED_IDS)@;s@VERSION=.*@VERSION=$(VERSION)@"
 	chmod +x $@
 
 # The example of use of libpci
 example$(EXEEXT): example.o lib/$(PCIIMPLIB)
 example.o: example.c $(PCIINC)
 
+$(LMROBJS) pcilmr.o: override CFLAGS+=-I .
+$(LMROBJS): %.o: %.c $(LMRINC)
+
+pcilmr$(EXEEXT): pcilmr.o $(LMROBJS) $(COMMON) lib/$(PCIIMPLIB)
+pcilmr.o: pcilmr.c $(LMRINC)
+
 %$(EXEEXT): %.o
-	$(CC) $(LDFLAGS) $(TARGET_ARCH) $^ $(LDLIBS) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(TARGET_ARCH) $^ $(LDLIBS) -o $@
 
 ifdef PCI_OS_WINDOWS
 comma := ,
@@ -125,6 +138,7 @@ comma := ,
 	$(WINDRES) --input=$< --output=$@ --input-format=rc --output-format=coff
 lspci$(EXEEXT): lspci-rsrc.o
 setpci$(EXEEXT): setpci-rsrc.o
+pcilmr$(EXEEXT): pcilmr-rsrc.o
 endif
 
 %.8 %.7 %.5: %.man
@@ -140,7 +154,7 @@ TAGS:
 
 clean:
 	rm -f `find . -name "*~" -o -name "*.[oa]" -o -name "\#*\#" -o -name TAGS -o -name core -o -name "*.orig"`
-	rm -f update-pciids lspci$(EXEEXT) setpci$(EXEEXT) example$(EXEEXT) lib/config.* *.[578] pci.ids.gz lib/*.pc lib/*.so lib/*.so.* lib/*.dll lib/*.def lib/dllrsrc.rc *-rsrc.rc tags
+	rm -f update-pciids lspci$(EXEEXT) setpci$(EXEEXT) example$(EXEEXT) lib/config.* *.[578] pci.ids.gz lib/*.pc lib/*.so lib/*.so.* lib/*.dll lib/*.def lib/dllrsrc.rc *-rsrc.rc tags pcilmr$(EXEEXT)
 	rm -rf maint/dist
 
 distclean: clean
@@ -150,13 +164,14 @@ install: all
 	$(DIRINSTALL) -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(SBINDIR) $(DESTDIR)$(IDSDIR) $(DESTDIR)$(MANDIR)/man8 $(DESTDIR)$(MANDIR)/man7 $(DESTDIR)$(MANDIR)/man5
 	$(INSTALL) -c -m 755 $(STRIP) lspci$(EXEEXT) $(DESTDIR)$(LSPCIDIR)
 	$(INSTALL) -c -m 755 $(STRIP) setpci$(EXEEXT) $(DESTDIR)$(SBINDIR)
+	$(INSTALL) -c -m 755 $(STRIP) pcilmr$(EXEEXT) $(DESTDIR)$(SBINDIR)
 	$(INSTALL) -c -m 755 update-pciids $(DESTDIR)$(SBINDIR)
 ifneq ($(IDSDIR),)
 	$(INSTALL) -c -m 644 $(PCI_IDS) $(DESTDIR)$(IDSDIR)
 else
 	$(INSTALL) -c -m 644 $(PCI_IDS) $(DESTDIR)$(SBINDIR)
 endif
-	$(INSTALL) -c -m 644 lspci.8 setpci.8 update-pciids.8 $(DESTDIR)$(MANDIR)/man8
+	$(INSTALL) -c -m 644 lspci.8 setpci.8 pcilmr.8 update-pciids.8 $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL) -c -m 644 pcilib.7 $(DESTDIR)$(MANDIR)/man7
 	$(INSTALL) -c -m 644 pci.ids.5 $(DESTDIR)$(MANDIR)/man5
 ifeq ($(SHARED),yes)
@@ -202,13 +217,13 @@ endif
 endif
 
 uninstall: all
-	rm -f $(DESTDIR)$(SBINDIR)/lspci$(EXEEXT) $(DESTDIR)$(SBINDIR)/setpci$(EXEEXT) $(DESTDIR)$(SBINDIR)/update-pciids
+	rm -f $(DESTDIR)$(LSPCIDIR)/lspci$(EXEEXT) $(DESTDIR)$(SBINDIR)/setpci$(EXEEXT) $(DESTDIR)$(SBINDIR)/pcilmr$(EXEEXT) $(DESTDIR)$(SBINDIR)/update-pciids
 ifneq ($(IDSDIR),)
 	rm -f $(DESTDIR)$(IDSDIR)/$(PCI_IDS)
 else
 	rm -f $(DESTDIR)$(SBINDIR)/$(PCI_IDS)
 endif
-	rm -f $(DESTDIR)$(MANDIR)/man8/lspci.8 $(DESTDIR)$(MANDIR)/man8/setpci.8 $(DESTDIR)$(MANDIR)/man8/update-pciids.8
+	rm -f $(DESTDIR)$(MANDIR)/man8/lspci.8 $(DESTDIR)$(MANDIR)/man8/setpci.8 $(DESTDIR)$(MANDIR)/man8/pcilmr.8 $(DESTDIR)$(MANDIR)/man8/update-pciids.8
 	rm -f $(DESTDIR)$(MANDIR)/man7/pcilib.7
 	rm -f $(DESTDIR)$(MANDIR)/man5/pci.ids.5
 ifeq ($(SHARED)_$(LIBEXT),yes_dll)

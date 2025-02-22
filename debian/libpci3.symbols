@@ -2,6 +2,7 @@ libpci.so.3 libpci3 #MINVER#
 * Build-Depends-Package: libpci-dev
  LIBPCI_3.0@LIBPCI_3.0 1:3.0.0
  LIBPCI_3.1@LIBPCI_3.1 1:3.1.0
+ LIBPCI_3.13@LIBPCI_3.13 1:3.13.0
  LIBPCI_3.2@LIBPCI_3.2 1:3.2.1
  LIBPCI_3.3@LIBPCI_3.3 1:3.3.0
  LIBPCI_3.4@LIBPCI_3.4 1:3.4.0
@@ -13,6 +14,7 @@ libpci.so.3 libpci3 #MINVER#
  pci_cleanup@LIBPCI_3.0 1:3.0.0
  pci_fill_info@LIBPCI_3.0 1:3.0.0
  pci_fill_info@LIBPCI_3.1 1:3.1.0
+ pci_fill_info@LIBPCI_3.13 1:3.13.0
  pci_fill_info@LIBPCI_3.2 1:3.2.1
  pci_fill_info@LIBPCI_3.3 1:3.3.0
  pci_fill_info@LIBPCI_3.4 1:3.4.0

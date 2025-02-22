@@ -1,3 +1,130 @@
+2024-05-30  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.13.0.
+
+	* lspci decodes CXL 1.1 device link status information.
+	  This requires a recent kernel which exports rcd_* atributes via
+	  sysfs.
+
+	* Further development of the pcilmr (the link margining utility)
+
+	* Dump parsing supports 6-digit domain numbers.
+
+	* Bug fixes in PCIe link state reporting.
+
+	* Decode more fields in PCIe AER capability.
+
+	* Fixed build on Linux systems with musl libc.
+
+	* Updated pci.ids.
+
+2024-04-05  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.12.0.
+
+	* lspci decodes the IDE (Integrity & Data Encryption) and TEE-IO
+	  extended capabilities.
+
+	* Several bugs in back-ends for Windows were fixed and the
+	  README.Windows updated.
+
+	* Fixed building on Haiku.
+
+	* We now use more C99 features.
+
+	* Optimization flags used for compiling individual object files
+	  should be the same as optimization flags for linking the final
+	  executable to make link-time optimization possible.
+
+	* We no longer look up subsystems in the HWDB, because there is
+	  no API for querying only the subsystem. The lookup we used
+	  previously returned a device name if there was no entry for
+	  the particular subsystem.
+
+	* Updated pci.ids.
+
+2024-02-25  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.11.1.
+
+	* Fixed wrong API version in lib/pci.h.
+
+	* Updated README.Windows.
+
+	* Fix compilation on Windows.
+
+2024-02-24  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.11.0.
+
+	* update-pciids now supports XZ compression. If libpci is configured
+	  with support for compression, all downloaded files are recompressed
+	  as gzip. Otherwise they are stored as plain text.
+
+	* update-pciids now sends itself as the User-Agent.
+
+	* Added a pcilmr utility for PCIe lane margining. Thanks to Nikita
+	  Proshkin for contributing it.
+
+	* Re-factored access to i386 ports on all relevant platforms.
+
+	* Added i386 port access on OpenBSD.
+
+	* Back-ends for Windows received many bug fixes and improvements.
+
+	* ECAM back-end now scans ACPI and BIOS memory faster.
+
+	* Linux systems without pread/pwrite are no longer supported
+	  as they are hopefully long gone. This helps avoid the tricky check
+	  for presence of pread which was found to fail on musl libc.
+
+	* Improved decoding of PCIe control and status registers.
+
+	* Decoding of CXL capabilities now supports up to CXL 3.0.
+
+	* lspci now displays interrupt message numbers consistently across
+	  different capabilities.
+
+	* Cache of IDs resolved via DNS, which was located in ~/.pci-ids
+	  by default, is now stored according to the XDG base directory
+	  specification in $XDG_CACHE_HOME/pci-ids.
+
+	* All source files now have SPDX license identifiers.
+
+	* Internal: The "aux" fields of structs pci_access and pci_dev
+	  reserved for use by back-ends were renamed to backend_data to better
+	  reflect their meaning.
+
+	* As usually, various minor bug fixes and updated pci.ids.
+
+2023-05-01  Martin Mares <mj@ucw.cz>
+
+	* Released as 3.10.0.
+
+	* Fixed bug in definition of versioned symbol aliases
+	  in shared libpci, which made compiling with link-time
+	  optimization fail.
+
+	* Filters now accept "0x..." syntax for backward compatibility.
+
+	* Windows: The cfgmgr32 back-end which provides the list of devices
+	  can be combined with another back-end which provides access
+	  to configuration space.
+
+	* ECAM (Enhanced Configuration Access Mechanism), which is defined
+	  by the PCIe standard, is now supported. It requires root privileges,
+	  access to physical memory, and also manual configuration on some
+	  systems.
+
+	* lspci: Tree view now works on multi-domain systems. It now respects
+	  filters properly.
+
+	* Last but not least, pci.ids were updated to the current snapshot
+	  of the database. This includes overall cleanup of entries with
+	  non-ASCII characters in their names -- such characters are allowed,
+	  but only if they convey interesting information (e.g., umlauts
+	  in German company names, but not the "registered trade mark" sign).
+
 2022-11-20  Martin Mares <mj@ucw.cz>
 
 	* Released as 3.9.0.
