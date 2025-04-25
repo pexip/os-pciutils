@@ -2,9 +2,11 @@
  *	The PCI Library -- Configuration Access via /sys/bus/pci
  *
  *	Copyright (c) 2003 Matthew Wilcox <matthew@wil.cx>
- *	Copyright (c) 1997--2008 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2024 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #define _GNU_SOURCE
@@ -17,10 +19,10 @@
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <sys/types.h>
 
 #include "internal.h"
-#include "pread.h"
 
 static void
 sysfs_config(struct pci_access *a)
@@ -104,12 +106,13 @@ sysfs_get_string(struct pci_dev *d, char *object, char *buf, int mandatory)
       return 0;
     }
   n = read(fd, buf, OBJBUFSIZE);
+  int read_errno = errno;
   close(fd);
   if (n < 0)
     {
-      warn("Error reading %s: %s", namebuf, strerror(errno));
+      warn("Error reading %s: %s", namebuf, strerror(read_errno));
       return 0;
-     }
+    }
   if (n >= OBJBUFSIZE)
     {
       warn("Value in %s too long", namebuf);
@@ -407,12 +410,18 @@ sysfs_fill_info(struct pci_dev *d, unsigned int flags)
 	      path_canon = realpath(path_rel, NULL);
 	      if (!path_canon || strcmp(path_canon, path_abs) != 0)
 	        parent = NULL;
+
+	      if (path_canon)
+		free(path_canon);
 	    }
 
 	  if (parent)
 	    d->parent = parent;
 	  else
 	    clear_fill(d, PCI_FILL_PARENT);
+
+	  if (path_abs)
+	    free(path_abs);
 	}
     }
 
@@ -475,6 +484,17 @@ sysfs_fill_info(struct pci_dev *d, unsigned int flags)
         clear_fill(d, PCI_FILL_DRIVER);
     }
 
+  if (want_fill(d, flags, PCI_FILL_RCD_LNK))
+    {
+      char buf[OBJBUFSIZE];
+      if (sysfs_get_string(d, "rcd_link_cap", buf, 0))
+        d->rcd_link_cap = strtoul(buf, NULL, 16);
+      if (sysfs_get_string(d, "rcd_link_ctrl", buf, 0))
+        d->rcd_link_ctrl = strtoul(buf, NULL, 16);
+      if (sysfs_get_string(d, "rcd_link_status", buf, 0))
+        d->rcd_link_status = strtoul(buf, NULL, 16);
+    }
+
   pci_generic_fill_info(d, flags);
 }
 
@@ -516,7 +536,6 @@ sysfs_setup(struct pci_dev *d, int intent)
       a->fd = open(namebuf, a->fd_rw ? O_RDWR : O_RDONLY);
       if (a->fd < 0)
 	a->warning("Cannot open %s", namebuf);
-      a->fd_pos = 0;
     }
   return a->fd;
 }
@@ -528,7 +547,7 @@ static int sysfs_read(struct pci_dev *d, int pos, byte *buf, int len)
 
   if (fd < 0)
     return 0;
-  res = do_read(d, fd, buf, len, pos);
+  res = pread(fd, buf, len, pos);
   if (res < 0)
     {
       d->access->warning("sysfs_read: read failed: %s", strerror(errno));
@@ -546,7 +565,7 @@ static int sysfs_write(struct pci_dev *d, int pos, byte *buf, int len)
 
   if (fd < 0)
     return 0;
-  res = do_write(d, fd, buf, len, pos);
+  res = pwrite(fd, buf, len, pos);
   if (res < 0)
     {
       d->access->warning("sysfs_write: write failed: %s", strerror(errno));
@@ -559,17 +578,6 @@ static int sysfs_write(struct pci_dev *d, int pos, byte *buf, int len)
     }
   return 1;
 }
-
-#ifdef PCI_HAVE_DO_READ
-
-/* pread() is not available and do_read() only works for a single fd, so we
- * cannot implement read_vpd properly. */
-static int sysfs_read_vpd(struct pci_dev *d, int pos, byte *buf, int len)
-{
-  return 0;
-}
-
-#else /* !PCI_HAVE_DO_READ */
 
 static int sysfs_read_vpd(struct pci_dev *d, int pos, byte *buf, int len)
 {
@@ -589,8 +597,6 @@ static int sysfs_read_vpd(struct pci_dev *d, int pos, byte *buf, int len)
   return 1;
 }
 
-#endif /* PCI_HAVE_DO_READ */
-
 static void sysfs_cleanup_dev(struct pci_dev *d)
 {
   struct pci_access *a = d->access;
@@ -600,17 +606,16 @@ static void sysfs_cleanup_dev(struct pci_dev *d)
 }
 
 struct pci_methods pm_linux_sysfs = {
-  "linux-sysfs",
-  "The sys filesystem on Linux",
-  sysfs_config,
-  sysfs_detect,
-  sysfs_init,
-  sysfs_cleanup,
-  sysfs_scan,
-  sysfs_fill_info,
-  sysfs_read,
-  sysfs_write,
-  sysfs_read_vpd,
-  NULL,					/* init_dev */
-  sysfs_cleanup_dev
+  .name = "linux-sysfs",
+  .help = "The sys filesystem on Linux",
+  .config = sysfs_config,
+  .detect = sysfs_detect,
+  .init = sysfs_init,
+  .cleanup = sysfs_cleanup,
+  .scan = sysfs_scan,
+  .fill_info = sysfs_fill_info,
+  .read = sysfs_read,
+  .write = sysfs_write,
+  .read_vpd = sysfs_read_vpd,
+  .cleanup_dev = sysfs_cleanup_dev,
 };

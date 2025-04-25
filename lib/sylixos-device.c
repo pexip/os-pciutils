@@ -1,9 +1,11 @@
 /*
- *  The PCI Library -- Direct Configuration access via SylixOS Ports
+ *	The PCI Library -- Direct Configuration access via SylixOS Ports
  *
- *  Copyright (c) 2018 YuJian.Gong <gongyujian@acoinfo.com>
+ *	Copyright (c) 2018 YuJian.Gong <gongyujian@acoinfo.com>
  *
- *  Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #define _GNU_SOURCE
@@ -142,17 +144,14 @@ sylixos_write(struct pci_dev *d, int pos, byte *buf, int len)
 }
 
 struct pci_methods pm_sylixos_device = {
-  "sylixos-device",
-  "SylixOS /proc/pci device",
-  sylixos_config,
-  sylixos_detect,
-  sylixos_init,
-  sylixos_cleanup,
-  sylixos_scan,
-  pci_generic_fill_info,
-  sylixos_read,
-  sylixos_write,
-  NULL,			// no read_vpd
-  NULL,			// no init_dev
-  NULL,			// no cleanup_dev
+  .name = "sylixos-device",
+  .help = "SylixOS /proc/pci device",
+  .config = sylixos_config,
+  .detect = sylixos_detect,
+  .init = sylixos_init,
+  .cleanup = sylixos_cleanup,
+  .scan = sylixos_scan,
+  .fill_info = pci_generic_fill_info,
+  .read = sylixos_read,
+  .write = sylixos_write,
 };

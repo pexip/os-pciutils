@@ -3,7 +3,9 @@
  *
  *	Copyright (c) 1997--2010 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 /*
@@ -252,7 +254,9 @@
 #define PCI_EXT_CAP_ID_LMR	0x27	/* Lane Margining at Receiver */
 #define PCI_EXT_CAP_ID_HIER_ID	0x28	/* Hierarchy ID */
 #define PCI_EXT_CAP_ID_NPEM	0x29	/* Native PCIe Enclosure Management */
+#define PCI_EXT_CAP_ID_32GT	0x2a	/* Physical Layer 32.0 GT/s */
 #define PCI_EXT_CAP_ID_DOE	0x2e	/* Data Object Exchange */
+#define PCI_EXT_CAP_ID_IDE	0x30	/* Integrity and Data Encryption */
 
 /*** Definitions of capabilities ***/
 
@@ -773,6 +777,7 @@
 #define  PCI_EXP_DEVCAP_PWR_VAL	0x3fc0000 /* Slot Power Limit Value */
 #define  PCI_EXP_DEVCAP_PWR_SCL	0xc000000 /* Slot Power Limit Scale */
 #define  PCI_EXP_DEVCAP_FLRESET	0x10000000 /* Function-Level Reset */
+#define  PCI_EXP_DEVCAP_TEE_IO  0x40000000 /* TEE-IO Supported (TDISP) */
 #define PCI_EXP_DEVCTL		0x8	/* Device Control */
 #define  PCI_EXP_DEVCTL_CERE	0x0001	/* Correctable Error Reporting En. */
 #define  PCI_EXP_DEVCTL_NFERE	0x0002	/* Non-Fatal Error Reporting Enable */
@@ -900,9 +905,13 @@
 #define  PCI_EXP_DEVCTL2_ARI		0x0020	/* ARI Forwarding */
 #define  PCI_EXP_DEVCTL2_ATOMICOP_REQUESTER_EN	0x0040	/* AtomicOp RequesterEnable */
 #define  PCI_EXP_DEVCTL2_ATOMICOP_EGRESS_BLOCK	0x0080	/* AtomicOp Egress Blocking */
+#define  PCI_EXP_DEVCTL2_IDO_REQ_EN	0x0100	/* Allow IDO for requests */
+#define  PCI_EXP_DEVCTL2_IDO_CMP_EN	0x0200	/* Allow IDO for completions */
 #define  PCI_EXP_DEVCTL2_LTR		0x0400	/* LTR enabled */
+#define  PCI_EXP_DEVCTL2_EPR_REQ	0x0800	/* Emergency Power Reduction Request */
 #define  PCI_EXP_DEVCTL2_10BIT_TAG_REQ	0x1000 /* 10 Bit Tag Requester enabled */
 #define  PCI_EXP_DEVCTL2_OBFF(x)		(((x) >> 13) & 3) /* OBFF enabled */
+#define  PCI_EXP_DEVCTL2_EE_TLP_BLK	0x8000	/* End-End TLP Prefix Blocking */
 #define PCI_EXP_DEVSTA2			0x2a	/* Device Status */
 #define PCI_EXP_LNKCAP2			0x2c	/* Link Capabilities */
 #define  PCI_EXP_LNKCAP2_SPEED(x)	(((x) >> 1) & 0x7f)
@@ -984,6 +993,16 @@
 #define  PCI_ERR_UNC_ECRC	0x00080000	/* ECRC Error Status */
 #define  PCI_ERR_UNC_UNSUP	0x00100000	/* Unsupported Request */
 #define  PCI_ERR_UNC_ACS_VIOL	0x00200000	/* ACS Violation */
+#define  PCI_ERR_UNC_INTERNAL					0x00400000	/* Uncorrectable Internal Error */
+#define  PCI_ERR_UNC_MC_BLOCKED_TLP				0x00800000	/* MC Blocked TLP */
+#define  PCI_ERR_UNC_ATOMICOP_EGRESS_BLOCKED	0x01000000	/* AtomicOp Egress Blocked */
+#define  PCI_ERR_UNC_TLP_PREFIX_BLOCKED			0x02000000	/* TLP Prefix Blocked Error */
+#define  PCI_ERR_UNC_POISONED_TLP_EGRESS		0x04000000	/* Poisoned TLP Egress Blocked */
+#define  PCI_ERR_UNC_DMWR_REQ_EGRESS_BLOCKED	0x08000000	/* DMWr Request Egress Blocked */
+#define  PCI_ERR_UNC_IDE_CHECK					0x10000000	/* IDE Check Failed */
+#define  PCI_ERR_UNC_MISR_IDE_TLP				0x20000000	/* Misrouted IDE TLP */
+#define  PCI_ERR_UNC_PCRC_CHECK					0x40000000	/* PCRC Check Failed */
+#define  PCI_ERR_UNC_TLP_XLAT_EGRESS_BLOCKED	0x80000000	/* TLP Translation Egress Blocked */
 #define PCI_ERR_UNCOR_MASK	8	/* Uncorrectable Error Mask */
 	/* Same bits as above */
 #define PCI_ERR_UNCOR_SEVER	12	/* Uncorrectable Error Severity */
@@ -995,6 +1014,8 @@
 #define  PCI_ERR_COR_REP_ROLL	0x00000100	/* REPLAY_NUM Rollover */
 #define  PCI_ERR_COR_REP_TIMER	0x00001000	/* Replay Timer Timeout */
 #define  PCI_ERR_COR_REP_ANFE	0x00002000	/* Advisory Non-Fatal Error */
+#define  PCI_ERR_COR_INTERNAL	0x00004000	/* Corrected Internal Error */
+#define  PCI_ERR_COR_HDRLOG_OVER	0x00008000	/* Header Log Overflow */
 #define PCI_ERR_COR_MASK	20	/* Correctable Error Mask */
 	/* Same bits as above */
 #define PCI_ERR_CAP		24	/* Advanced Error Capabilities */
@@ -1069,7 +1090,8 @@
 #define PCI_DVSEC_ID_CXL	0	/* Designated Vendor-Specific ID for Intel CXL */
 
 /* PCIe CXL Designated Vendor-Specific Capabilities for Devices: Control, Status */
-#define PCI_CXL_DEV_LEN 0x38 /* CXL Device DVSEC Length */
+#define PCI_CXL_DEV_LEN 		0x38	/* CXL Device DVSEC Length for Rev1 */
+#define PCI_CXL_DEV_LEN_REV2 		0x3c	/* ... for Rev2 */
 #define PCI_CXL_DEV_CAP			0x0a	/* CXL Capability Register */
 #define  PCI_CXL_DEV_CAP_CACHE		0x0001	/* CXL.cache Protocol Support */
 #define  PCI_CXL_DEV_CAP_IO		0x0002	/* CXL.io Protocol Support */
@@ -1087,6 +1109,12 @@
 #define  PCI_CXL_DEV_CTRL_VIRAL		0x4000	/* CXL Viral Handling Enable */
 #define PCI_CXL_DEV_STATUS		0x0e	/* CXL Status Register */
 #define  PCI_CXL_DEV_STATUS_VIRAL	0x4000	/* CXL Viral Handling Status */
+#define PCI_CXL_DEV_CTRL2		0x10	/* CXL Control Register 2 */
+#define  PCI_CXL_DEV_CTRL2_DISABLE_CACHING            0x0001
+#define  PCI_CXL_DEV_CTRL2_INIT_WB_INVAL              0x0002
+#define  PCI_CXL_DEV_CTRL2_INIT_CXL_RST               0x0003
+#define  PCI_CXL_DEV_CTRL2_INIT_CXL_RST_CLR_EN        0x0004
+#define  PCI_CXL_DEV_CTRL2_INIT_CXL_HDM_STATE_HOTRST  0x0005
 #define PCI_CXL_DEV_STATUS2		0x12
 #define  PCI_CXL_DEV_STATUS_CACHE_INV	0x0001
 #define  PCI_CXL_DEV_STATUS_RC		0x0002  /* Device Reset Complete */
@@ -1110,6 +1138,13 @@
 #define PCI_CXL_DEV_RANGE2_SIZE_LO	0x2c
 #define PCI_CXL_DEV_RANGE2_BASE_HI	0x30
 #define PCI_CXL_DEV_RANGE2_BASE_LO	0x34
+/* From Rev2 */
+#define PCI_CXL_DEV_CAP3  0x38
+#define  PCI_CXL_DEV_CAP3_HDM_STATE_RST_COLD     0x0001
+#define  PCI_CXL_DEV_CAP3_HDM_STATE_RST_WARM     0x0002
+#define  PCI_CXL_DEV_CAP3_HDM_STATE_RST_HOT      0x0003
+#define  PCI_CXL_DEV_CAP3_HDM_STATE_RST_HOT_CFG  0x0004
+
 
 /* PCIe CXL 2.0 Designated Vendor-Specific Capabilities for Ports */
 #define PCI_CXL_PORT_EXT_LEN 0x28 /* CXL Extensions DVSEC for Ports Length */
@@ -1192,6 +1227,7 @@
 #define PCI_CXL_FB_PORT_CTRL2               0x18    /* CXL Flex Bus Port Control2 Register */
 #define  PCI_CXL_FB_CTRL2_NOP_HINT          0x01    /* NOP Hint Enable */
 #define PCI_CXL_FB_PORT_STATUS2             0x1c    /* CXL Flex Bus Port Status2 Register */
+#define PCI_CXL_FB_NEXT_UNSUPPORTED         0x20
 
 /* PCIe CXL Designated Vendor-Specific Capabilities for Multi-Logical Device */
 #define PCI_CXL_MLD_LEN     0x10
@@ -1298,9 +1334,10 @@
 #define  PCI_PRI_CTRL_ENABLE	0x01	/* Enable */
 #define  PCI_PRI_CTRL_RESET	0x02	/* Reset */
 #define PCI_PRI_STATUS		0x06	/* PRI status register */
-#define  PCI_PRI_STATUS_RF	0x001	/* Response Failure */
-#define  PCI_PRI_STATUS_UPRGI	0x002	/* Unexpected PRG index */
-#define  PCI_PRI_STATUS_STOPPED	0x100	/* PRI Stopped */
+#define  PCI_PRI_STATUS_RF	0x0001	/* Response Failure */
+#define  PCI_PRI_STATUS_UPRGI	0x0002	/* Unexpected PRG index */
+#define  PCI_PRI_STATUS_STOPPED	0x0100	/* PRI Stopped */
+#define  PCI_PRI_STATUS_PASID	0x8000	/* PASID required in PRG response */
 #define PCI_PRI_MAX_REQ		0x08	/* PRI max reqs supported */
 #define PCI_PRI_ALLOC_REQ	0x0c	/* PRI max reqs allowed */
 
@@ -1389,8 +1426,77 @@
 #define PCI_DOE_STS		0xC	/* DOE Status Register */
 #define  PCI_DOE_STS_BUSY		0x1	/* DOE Busy */
 #define  PCI_DOE_STS_INT		0x2	/* DOE Interrupt Status */
-#define  PCI_DOE_STS_ERROR		0x3	/* DOE Error */
+#define  PCI_DOE_STS_ERROR		0x4	/* DOE Error */
 #define  PCI_DOE_STS_OBJECT_READY	0x80000000 /* Data Object Ready */
+
+/* Lane Margining at the Receiver Extended Capability */
+#define PCI_LMR_CAPS			0x4 /* Margining Port Capabilities Register */
+#define PCI_LMR_CAPS_DRVR		0x1 /* Margining uses Driver Software */
+#define PCI_LMR_PORT_STS		0x6 /* Margining Port Status Register */
+#define PCI_LMR_PORT_STS_READY		0x1 /* Margining Ready */
+#define PCI_LMR_PORT_STS_SOFT_READY	0x2 /* Margining Software Ready */
+
+/* Integrity and Data Encryption Extended Capability */
+#define PCI_IDE_CAP		0x4
+#define  PCI_IDE_CAP_LINK_IDE_SUPP	0x1	/* Link IDE Stream Supported */
+#define  PCI_IDE_CAP_SELECTIVE_IDE_SUPP 0x2	/* Selective IDE Streams Supported */
+#define  PCI_IDE_CAP_FLOWTHROUGH_IDE_SUPP 0x4	/* Flow-Through IDE Stream Supported */
+#define  PCI_IDE_CAP_PARTIAL_HEADER_ENC_SUPP 0x8 /* Partial Header Encryption Supported */
+#define  PCI_IDE_CAP_AGGREGATION_SUPP	0x10	/* Aggregation Supported */
+#define  PCI_IDE_CAP_PCRC_SUPP		0x20	/* PCRC Supported */
+#define  PCI_IDE_CAP_IDE_KM_SUPP	0x40	/* IDE_KM Protocol Supported */
+#define  PCI_IDE_CAP_ALG(x)	(((x) >> 8) & 0x1f) /* Supported Algorithms */
+#define  PCI_IDE_CAP_ALG_AES_GCM_256	0	/* AES-GCM 256 key size, 96b MAC */
+#define  PCI_IDE_CAP_LINK_TC_NUM(x)		(((x) >> 13) & 0x7) /* Number of TCs Supported for Link IDE */
+#define  PCI_IDE_CAP_SELECTIVE_STREAMS_NUM(x)	(((x) >> 16) & 0xff) /* Number of Selective IDE Streams Supported */
+#define  PCI_IDE_CAP_TEE_LIMITED_SUPP   0x1000000 /* TEE-Limited Stream Supported */
+#define PCI_IDE_CTL		0x8
+#define  PCI_IDE_CTL_FLOWTHROUGH_IDE	0x4	/* Flow-Through IDE Stream Enabled */
+#define PCI_IDE_LINK_STREAM		0xC
+/* Link IDE Stream block, up to PCI_IDE_CAP_LINK_TC_NUM */
+/* Link IDE Stream Control Register */
+#define  PCI_IDE_LINK_CTL_EN		0x1	/* Link IDE Stream Enable */
+#define  PCI_IDE_LINK_CTL_TX_AGGR_NPR(x)(((x) >> 2) & 0x3) /* Tx Aggregation Mode NPR */
+#define  PCI_IDE_LINK_CTL_TX_AGGR_PR(x)	(((x) >> 4) & 0x3) /* Tx Aggregation Mode PR */
+#define  PCI_IDE_LINK_CTL_TX_AGGR_CPL(x)(((x) >> 6) & 0x3) /* Tx Aggregation Mode CPL */
+#define  PCI_IDE_LINK_CTL_PCRC_EN	0x100	/* PCRC Enable */
+#define  PCI_IDE_LINK_CTL_PART_ENC(x)	(((x) >> 10) & 0xf)  /* Partial Header Encryption Mode */
+#define  PCI_IDE_LINK_CTL_ALG(x)	(((x) >> 14) & 0x1f) /* Selected Algorithm */
+#define  PCI_IDE_LINK_CTL_TC(x)		(((x) >> 19) & 0x7)  /* Traffic Class */
+#define  PCI_IDE_LINK_CTL_ID(x)		(((x) >> 24) & 0xff) /* Stream ID */
+/* Link IDE Stream Status Register */
+#define  PCI_IDE_LINK_STS_STATUS(x)	((x) & 0xf) /* Link IDE Stream State */
+#define  PCI_IDE_LINK_STS_RECVD_INTEGRITY_CHECK	0x80000000 /* Received Integrity Check Fail Message */
+/* Selective IDE Stream block, up to PCI_IDE_CAP_SELECTIVE_STREAMS_NUM */
+/* Selective IDE Stream Capability Register */
+#define  PCI_IDE_SEL_CAP_BLOCKS_NUM(x)	((x) & 0xf) /* Number of Address Association Register Blocks */
+/* Selective IDE Stream Control Register */
+#define  PCI_IDE_SEL_CTL_EN		0x1	/* Selective IDE Stream Enable */
+#define  PCI_IDE_SEL_CTL_TX_AGGR_NPR(x)	(((x) >> 2) & 0x3) /* Tx Aggregation Mode NPR */
+#define  PCI_IDE_SEL_CTL_TX_AGGR_PR(x)	(((x) >> 4) & 0x3) /* Tx Aggregation Mode PR */
+#define  PCI_IDE_SEL_CTL_TX_AGGR_CPL(x)	(((x) >> 6) & 0x3) /* Tx Aggregation Mode CPL */
+#define  PCI_IDE_SEL_CTL_PCRC_EN	0x100	/* PCRC Enable */
+#define  PCI_IDE_SEL_CTL_CFG_EN         0x200   /* Selective IDE for Configuration Requests Enable */
+#define  PCI_IDE_SEL_CTL_PART_ENC(x)	(((x) >> 10) & 0xf)  /* Partial Header Encryption Mode */
+#define  PCI_IDE_SEL_CTL_ALG(x)		(((x) >> 14) & 0x1f) /* Selected Algorithm */
+#define  PCI_IDE_SEL_CTL_TC(x)		(((x) >> 19) & 0x7)  /* Traffic Class */
+#define  PCI_IDE_SEL_CTL_DEFAULT	0x400000 /* Default Stream */
+#define  PCI_IDE_SEL_CTL_ID(x)		(((x) >> 24) & 0xff) /* Stream ID */
+/* Selective IDE Stream Status Register */
+#define  PCI_IDE_SEL_STS_STATUS(x)	((x) & 0xf) /* Selective IDE Stream State */
+#define  PCI_IDE_SEL_STS_RECVD_INTEGRITY_CHECK	0x80000000 /* Received Integrity Check Fail Message */
+/* IDE RID Association Register 1 */
+#define  PCI_IDE_SEL_RID_1_LIMIT(x)	(((x) >> 8) & 0xffff) /* RID Limit */
+/* IDE RID Association Register 2 */
+#define  PCI_IDE_SEL_RID_2_VALID	0x1	/* Valid */
+#define  PCI_IDE_SEL_RID_2_BASE(x)	(((x) >> 8) & 0xffff) /* RID Base */
+#define  PCI_IDE_SEL_RID_2_SEG_BASE(x)	(((x) >> 24) & 0xff) /* Segmeng Base */
+/* Selective IDE Address Association Register Block, up to PCI_IDE_SEL_CAP_BLOCKS_NUM */
+#define  PCI_IDE_SEL_ADDR_1_VALID	0x1	/* Valid */
+#define  PCI_IDE_SEL_ADDR_1_BASE_LOW(x)	(((x) >> 8) & 0xfff) /* Memory Base Lower */
+#define  PCI_IDE_SEL_ADDR_1_LIMIT_LOW(x)(((x) >> 20) & 0xfff) /* Memory Limit Lower */
+/* IDE Address Association Register 2 is "Memory Limit Upper" */
+/* IDE Address Association Register 3 is "Memory Base Upper" */
 
 /*
  * The PCI interface treats multi-function devices as independent

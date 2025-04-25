@@ -3,7 +3,9 @@
  *
  *	Copyright (c) 2017 Joan Lledó <jlledom@member.fsf.org>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #define _GNU_SOURCE
@@ -72,8 +74,8 @@ hurd_cleanup(struct pci_access *a UNUSED)
 static void
 hurd_init_dev(struct pci_dev *d)
 {
-  d->aux = pci_malloc(d->access, sizeof(mach_port_t));
-  *((mach_port_t *) d->aux) = MACH_PORT_NULL;
+  d->backend_data = pci_malloc(d->access, sizeof(mach_port_t));
+  *((mach_port_t *) d->backend_data) = MACH_PORT_NULL;
 }
 
 /* Deallocate the port and free its space */
@@ -82,17 +84,18 @@ hurd_cleanup_dev(struct pci_dev *d)
 {
   mach_port_t device_port;
 
-  device_port = *((mach_port_t *) d->aux);
+  device_port = *((mach_port_t *) d->backend_data);
   mach_port_deallocate(mach_task_self(), device_port);
 
-  pci_mfree(d->aux);
+  pci_mfree(d->backend_data);
+  d->backend_data = NULL;
 }
 
 static mach_port_t
 device_port_lookup(struct pci_dev *d)
 {
   char server[NAME_MAX];
-  mach_port_t device_port = *((mach_port_t *) d->aux);
+  mach_port_t device_port = *((mach_port_t *) d->backend_data);
 
   if (device_port != MACH_PORT_NULL)
     return device_port;
@@ -105,7 +108,7 @@ device_port_lookup(struct pci_dev *d)
   if (device_port == MACH_PORT_NULL)
     d->access->error("Cannot find the PCI arbiter");
 
-  *((mach_port_t *) d->aux) = device_port;
+  *((mach_port_t *) d->backend_data) = device_port;
   return device_port;
 }
 
@@ -353,17 +356,15 @@ hurd_fill_info(struct pci_dev *d, unsigned int flags)
 }
 
 struct pci_methods pm_hurd = {
-  "hurd",
-  "Hurd access using RPCs",
-  NULL,				/* config */
-  hurd_detect,
-  hurd_init,
-  hurd_cleanup,
-  hurd_scan,
-  hurd_fill_info,
-  hurd_read,
-  hurd_write,
-  NULL,				/* read_vpd */
-  hurd_init_dev,
-  hurd_cleanup_dev
+  .name = "hurd",
+  .help = "Hurd access using RPCs",
+  .detect = hurd_detect,
+  .init = hurd_init,
+  .cleanup = hurd_cleanup,
+  .scan = hurd_scan,
+  .fill_info = hurd_fill_info,
+  .read = hurd_read,
+  .write = hurd_write,
+  .init_dev = hurd_init_dev,
+  .cleanup_dev = hurd_cleanup_dev
 };

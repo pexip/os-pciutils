@@ -3,7 +3,9 @@
  *
  *	Copyright (c) 1997--2018 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #define PCIUTILS_LSPCI
@@ -56,12 +58,6 @@ u32 get_conf_long(struct device *d, unsigned int pos);
 word get_conf_word(struct device *d, unsigned int pos);
 byte get_conf_byte(struct device *d, unsigned int pos);
 
-/* Useful macros for decoding of bits and bit fields */
-
-#define FLAG(x,y) ((x & y) ? '+' : '-')
-#define BITS(x,at,width) (((x) >> (at)) & ((1 << (width)) - 1))
-#define TABLE(tab,x,buf) ((x) < sizeof(tab)/sizeof((tab)[0]) ? (tab)[x] : (sprintf((buf), "??%d", (x)), (buf)))
-
 /* ls-vpd.c */
 
 void cap_vpd(struct device *d);
@@ -88,7 +84,7 @@ void show_kernel_cleanup(void);
 
 struct bridge {
   struct bridge *chain;			/* Single-linked list of bridges */
-  struct bridge *next, *child;		/* Tree of bridges */
+  struct bridge *next, *prev, *child;	/* Tree of bridges */
   struct bus *first_bus, *last_bus;	/* List of buses connected to this bridge */
   unsigned int domain;
   unsigned int primary, secondary, subordinate;	/* Bus numbers */
