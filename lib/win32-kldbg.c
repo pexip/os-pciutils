@@ -3,7 +3,9 @@
  *
  *      Copyright (c) 2022 Pali Rohár <pali@kernel.org>
  *
- *      Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <windows.h>
@@ -13,7 +15,11 @@
 #include <string.h> /* for memset() and memcpy() */
 
 #include "internal.h"
-#include "i386-io-windows.h"
+#include "win32-helpers.h"
+
+#ifndef ERROR_NOT_FOUND
+#define ERROR_NOT_FOUND 1168
+#endif
 
 #ifndef LOAD_LIBRARY_AS_IMAGE_RESOURCE
 #define LOAD_LIBRARY_AS_IMAGE_RESOURCE 0x20
@@ -102,53 +108,6 @@ static HANDLE kldbg_dev = INVALID_HANDLE_VALUE;
 static BOOL
 win32_kldbg_pci_bus_data(BOOL WriteBusData, USHORT SegmentNumber, BYTE BusNumber, BYTE DeviceNumber, BYTE FunctionNumber, USHORT Address, PVOID Buffer, ULONG BufferSize, LPDWORD Length);
 
-static const char *
-win32_strerror(DWORD win32_error_id)
-{
-  /*
-   * Use static buffer which is large enough.
-   * Hopefully no Win32 API error message string is longer than 4 kB.
-   */
-  static char buffer[4096];
-  DWORD len;
-
-  len = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, win32_error_id, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), buffer, sizeof(buffer), NULL);
-
-  /* FormatMessage() automatically appends ".\r\n" to the error message. */
-  if (len && buffer[len-1] == '\n')
-    buffer[--len] = '\0';
-  if (len && buffer[len-1] == '\r')
-    buffer[--len] = '\0';
-  if (len && buffer[len-1] == '.')
-    buffer[--len] = '\0';
-
-  if (!len)
-    sprintf(buffer, "Unknown Win32 error %lu", win32_error_id);
-
-  return buffer;
-}
-
-static BOOL
-win32_is_32bit_on_64bit_system(void)
-{
-  BOOL (WINAPI *MyIsWow64Process)(HANDLE, PBOOL);
-  HMODULE kernel32;
-  BOOL is_wow64;
-
-  kernel32 = GetModuleHandle(TEXT("kernel32.dll"));
-  if (!kernel32)
-    return FALSE;
-
-  MyIsWow64Process = (void *)GetProcAddress(kernel32, "IsWow64Process");
-  if (!MyIsWow64Process)
-    return FALSE;
-
-  if (!MyIsWow64Process(GetCurrentProcess(), &is_wow64))
-    return FALSE;
-
-  return is_wow64;
-}
-
 static WORD
 win32_get_current_process_machine(void)
 {
@@ -207,7 +166,7 @@ win32_check_driver(BYTE *driver_data)
 }
 
 static int
-win32_kldbg_unpack_driver(struct pci_access *a, void *driver_path)
+win32_kldbg_unpack_driver(struct pci_access *a, LPTSTR driver_path)
 {
   BOOL use_kd_exe = FALSE;
   HMODULE exe_with_driver = NULL;
@@ -317,58 +276,34 @@ out:
 static int
 win32_kldbg_register_driver(struct pci_access *a, SC_HANDLE manager, SC_HANDLE *service)
 {
-  UINT (WINAPI *get_system_root_path)(void *buffer, UINT size) = NULL;
-  UINT systemroot_len;
-  void *driver_path;
+  UINT system32_len;
+  LPTSTR driver_path;
   HANDLE driver_handle;
-  HMODULE kernel32;
 
   /*
-   * COM library dbgeng.dll unpacks kldbg driver to file \\system32\\kldbgdrv.sys
+   * COM library dbgeng.dll unpacks kldbg driver to file "\\system32\\kldbgdrv.sys"
    * and register this driver with service name kldbgdrv. Implement same behavior.
+   * GetSystemDirectory() returns path to "\\system32" directory on all Windows versions.
    */
 
-  /*
-   * Old Windows versions return path to NT SystemRoot namespace via
-   * GetWindowsDirectory() function. New Windows versions via
-   * GetSystemWindowsDirectory(). GetSystemWindowsDirectory() is not
-   * provided in old Windows versions, so use GetProcAddress() for
-   * compatibility with all Windows versions.
-   */
+  system32_len = GetSystemDirectory(NULL, 0); /* Returns number of TCHARs plus 1 for nul-term. */
+  if (!system32_len)
+    system32_len = sizeof("C:\\Windows\\System32");
 
-  kernel32 = GetModuleHandle(TEXT("kernel32.dll"));
-  if (kernel32)
-    get_system_root_path = (void *)GetProcAddress(kernel32, "GetSystemWindowsDirectory"
-#ifdef UNICODE
-      "W"
-#else
-      "A"
-#endif
-    );
+  driver_path = pci_malloc(a, (system32_len + sizeof("\\kldbgdrv.sys")-1) * sizeof(TCHAR));
 
-  if (!get_system_root_path)
-    get_system_root_path = (void *)&GetWindowsDirectory;
-
-  systemroot_len = get_system_root_path(NULL, 0);
-  if (!systemroot_len)
-    systemroot_len = sizeof(TEXT("C:\\Windows\\"));
-
-  driver_path = pci_malloc(a, systemroot_len + sizeof(TEXT("\\system32\\kldbgdrv.sys")));
-
-  systemroot_len = get_system_root_path(driver_path, systemroot_len + sizeof(TEXT("")));
-  if (!systemroot_len)
+  system32_len = GetSystemDirectory(driver_path, system32_len); /* Now it returns number of TCHARs without nul-term. */
+  if (!system32_len)
     {
-      systemroot_len = sizeof(TEXT("C:\\Windows\\"));
-      memcpy(driver_path, TEXT("C:\\Windows\\"), systemroot_len);
+      system32_len = sizeof("C:\\Windows\\System32")-1;
+      memcpy(driver_path, TEXT("C:\\Windows\\System32"), system32_len);
     }
 
-  if (((char *)driver_path)[systemroot_len-sizeof(TEXT(""))+1] != '\\')
-    {
-      ((char *)driver_path)[systemroot_len-sizeof(TEXT(""))+1] = '\\';
-      systemroot_len += sizeof(TEXT(""));
-    }
+  /* GetSystemDirectory returns path without backslash unless the system directory is the root directory. */
+  if (driver_path[system32_len-1] != '\\')
+    driver_path[system32_len++] = '\\';
 
-  memcpy((char *)driver_path + systemroot_len, TEXT("system32\\kldbgdrv.sys"), sizeof(TEXT("system32\\kldbgdrv.sys")));
+  memcpy(driver_path + system32_len, TEXT("kldbgdrv.sys"), sizeof(TEXT("kldbgdrv.sys")));
 
   driver_handle = CreateFile(driver_path, 0, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   if (driver_handle != INVALID_HANDLE_VALUE)
@@ -544,7 +479,7 @@ win32_kldbg_setup(struct pci_access *a)
       return 0;
     }
 
-  if (!enable_privilege(luid_debug_privilege, &revert_token, &revert_only_privilege))
+  if (!win32_enable_privilege(luid_debug_privilege, &revert_token, &revert_only_privilege))
     {
       a->debug("Process does not have right to enable Debug privilege.");
       CloseHandle(kldbg_dev);
@@ -566,7 +501,7 @@ win32_kldbg_setup(struct pci_access *a)
   CloseHandle(kldbg_dev);
   kldbg_dev = INVALID_HANDLE_VALUE;
 
-  revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
+  win32_revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
   revert_token = NULL;
   revert_only_privilege = FALSE;
   return 0;
@@ -602,7 +537,7 @@ win32_kldbg_cleanup(struct pci_access *a UNUSED)
 
   if (debug_privilege_enabled)
     {
-      revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
+      win32_revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
       revert_token = NULL;
       revert_only_privilege = FALSE;
       debug_privilege_enabled = FALSE;
@@ -780,17 +715,13 @@ win32_kldbg_write(struct pci_dev *d, int pos, byte *buf, int len)
 }
 
 struct pci_methods pm_win32_kldbg = {
-  "win32-kldbg",
-  "Win32 PCI config space access using Kernel Local Debugging Driver",
-  NULL,					/* config */
-  win32_kldbg_detect,
-  win32_kldbg_init,
-  win32_kldbg_cleanup,
-  win32_kldbg_scan,
-  pci_generic_fill_info,
-  win32_kldbg_read,
-  win32_kldbg_write,
-  NULL,					/* read_vpd */
-  NULL,					/* init_dev */
-  NULL					/* cleanup_dev */
+  .name = "win32-kldbg",
+  .help = "Win32 PCI config space access using Kernel Local Debugging Driver",
+  .detect = win32_kldbg_detect,
+  .init = win32_kldbg_init,
+  .cleanup = win32_kldbg_cleanup,
+  .scan = win32_kldbg_scan,
+  .fill_info = pci_generic_fill_info,
+  .read = win32_kldbg_read,
+  .write = win32_kldbg_write,
 };

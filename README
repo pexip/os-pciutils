@@ -1,6 +1,6 @@
-This package contains the PCI Utilities, version 3.9.0.
+This package contains the PCI Utilities, version 3.13.0.
 
-Copyright (c) 1997--2022 Martin Mares <mj@ucw.cz>
+Copyright (c) 1997--2024 Martin Mares <mj@ucw.cz>
 
 All files in this package can be freely distributed and used according
 to the terms of the GNU General Public License, either version 2 or
@@ -20,7 +20,7 @@ In runs on the following systems:
 	Linux		(via /sys/bus/pci, /proc/bus/pci or i386 ports)
 	FreeBSD		(via /dev/pci)
 	NetBSD		(via libpci)
-	OpenBSD		(via /dev/pci)
+	OpenBSD		(via /dev/pci or i386 ports)
 	GNU/kFreeBSD	(via /dev/pci)
 	Solaris/i386	(direct port access)
 	Aix		(via /dev/pci and odmget)
@@ -32,6 +32,7 @@ In runs on the following systems:
 	Darwin		(via IOKit)
 	DOS/DJGPP	(via i386 ports)
 	SylixOS		(via /proc/pci)
+	AmigaOS on PPC	(via Expansion library)
 
 It should be very easy to add support for other systems as well (volunteers
 wanted; if you want to try that, I'll be very glad to see the patches and
@@ -47,6 +48,8 @@ The utilities include:  (See manual pages for more details)
     the manual page first!
 
   - update-pciids: download the current version of the pci.ids file.
+
+  - pcilmr: performs margining on PCIe links.
 
 
 2. Compiling and (un)installing

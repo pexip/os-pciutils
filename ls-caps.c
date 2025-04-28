@@ -3,11 +3,14 @@
  *
  *	Copyright (c) 1997--2018 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "lspci.h"
 
@@ -715,6 +718,7 @@ static void cap_express_dev(struct device *d, int where, int type)
       printf(" SlotPowerLimit ");
       show_power_limit((t & PCI_EXP_DEVCAP_PWR_VAL) >> 18, (t & PCI_EXP_DEVCAP_PWR_SCL) >> 26);
     }
+  printf(" TEE-IO%c", FLAG(t, PCI_EXP_DEVCAP_TEE_IO));
   printf("\n");
 
   w = get_conf_word(d, where + PCI_EXP_DEVCTL);
@@ -839,7 +843,7 @@ static void cap_express_link(struct device *d, int where, int type)
   if ((type == PCI_EXP_TYPE_ROOT_PORT) || (type == PCI_EXP_TYPE_ENDPOINT) ||
       (type == PCI_EXP_TYPE_LEG_END) || (type == PCI_EXP_TYPE_PCI_BRIDGE))
     printf(" RCB %d bytes,", w & PCI_EXP_LNKCTL_RCB ? 128 : 64);
-  printf(" Disabled%c CommClk%c\n\t\t\tExtSynch%c ClockPM%c AutWidDis%c BWInt%c AutBWInt%c\n",
+  printf(" LnkDisable%c CommClk%c\n\t\t\tExtSynch%c ClockPM%c AutWidDis%c BWInt%c AutBWInt%c\n",
 	FLAG(w, PCI_EXP_LNKCTL_DISABLE),
 	FLAG(w, PCI_EXP_LNKCTL_CLOCK),
 	FLAG(w, PCI_EXP_LNKCTL_XSYNCH),
@@ -1151,12 +1155,9 @@ static void cap_express_dev2(struct device *d, int where, int type)
     }
 
   w = get_conf_word(d, where + PCI_EXP_DEVCTL2);
-  printf("\t\tDevCtl2: Completion Timeout: %s, TimeoutDis%c LTR%c 10BitTagReq%c OBFF %s,",
+  printf("\t\tDevCtl2: Completion Timeout: %s, TimeoutDis%c",
 	cap_express_dev2_timeout_value(PCI_EXP_DEVCTL2_TIMEOUT_VALUE(w)),
-	FLAG(w, PCI_EXP_DEVCTL2_TIMEOUT_DIS),
-	FLAG(w, PCI_EXP_DEVCTL2_LTR),
-	FLAG(w, PCI_EXP_DEVCTL2_10BIT_TAG_REQ),
-	cap_express_devctl2_obff(PCI_EXP_DEVCTL2_OBFF(w)));
+	FLAG(w, PCI_EXP_DEVCTL2_TIMEOUT_DIS));
   if (type == PCI_EXP_TYPE_ROOT_PORT || type == PCI_EXP_TYPE_DOWNSTREAM)
     printf(" ARIFwd%c\n", FLAG(w, PCI_EXP_DEVCTL2_ARI));
   else
@@ -1174,6 +1175,15 @@ static void cap_express_dev2(struct device *d, int where, int type)
         printf(" EgressBlck%c", FLAG(w, PCI_EXP_DEVCTL2_ATOMICOP_EGRESS_BLOCK));
       printf("\n");
     }
+  printf("\t\t\t IDOReq%c IDOCompl%c LTR%c EmergencyPowerReductionReq%c\n",
+	FLAG(w, PCI_EXP_DEVCTL2_IDO_REQ_EN),
+	FLAG(w, PCI_EXP_DEVCTL2_IDO_CMP_EN),
+	FLAG(w, PCI_EXP_DEVCTL2_LTR),
+	FLAG(w, PCI_EXP_DEVCTL2_EPR_REQ));
+  printf("\t\t\t 10BitTagReq%c OBFF %s, EETLPPrefixBlk%c\n",
+	FLAG(w, PCI_EXP_DEVCTL2_10BIT_TAG_REQ),
+	cap_express_devctl2_obff(PCI_EXP_DEVCTL2_OBFF(w)),
+	FLAG(w, PCI_EXP_DEVCTL2_EE_TLP_BLK));
 }
 
 static const char *cap_express_link2_speed_cap(int vector)
@@ -1183,8 +1193,10 @@ static const char *cap_express_link2_speed_cap(int vector)
    * permitted to skip support for any data rates between 2.5GT/s and the
    * highest supported rate.
    */
-  if (vector & 0x60)
+  if (vector & 0x40)
     return "RsvdP";
+  if (vector & 0x20)
+    return "2.5-64GT/s";
   if (vector & 0x10)
     return "2.5-32GT/s";
   if (vector & 0x08)
@@ -1379,6 +1391,68 @@ static void cap_express_slot2(struct device *d UNUSED, int where UNUSED)
   /* No capabilities that require this field in PCIe rev2.0 spec. */
 }
 
+static void cap_express_link_rcd(struct device *d)
+{
+  u32 t, aspm, cap_speed, cap_width, sta_speed, sta_width;
+  u16 w;
+  struct pci_dev *pdev = d->dev;
+
+  if (!pdev->rcd_link_cap)
+    return;
+
+  t = pdev->rcd_link_cap;
+  aspm = (t & PCI_EXP_LNKCAP_ASPM) >> 10;
+  cap_speed = t & PCI_EXP_LNKCAP_SPEED;
+  cap_width = (t & PCI_EXP_LNKCAP_WIDTH) >> 4;
+  printf("\t\tLnkCap:\tPort #%d, Speed %s, Width x%d, ASPM %s",
+    t >> 24,
+    link_speed(cap_speed), cap_width,
+    aspm_support(aspm));
+  if (aspm)
+    {
+      printf(", Exit Latency ");
+      if (aspm & 1)
+        printf("L0s %s", latency_l0s((t & PCI_EXP_LNKCAP_L0S) >> 12));
+      if (aspm & 2)
+        printf("%sL1 %s", (aspm & 1) ? ", " : "",
+      latency_l1((t & PCI_EXP_LNKCAP_L1) >> 15));
+    }
+  printf("\n");
+  printf("\t\t\tClockPM%c Surprise%c LLActRep%c BwNot%c ASPMOptComp%c\n",
+    FLAG(t, PCI_EXP_LNKCAP_CLOCKPM),
+    FLAG(t, PCI_EXP_LNKCAP_SURPRISE),
+    FLAG(t, PCI_EXP_LNKCAP_DLLA),
+    FLAG(t, PCI_EXP_LNKCAP_LBNC),
+    FLAG(t, PCI_EXP_LNKCAP_AOC));
+
+  w = pdev->rcd_link_ctrl;
+  printf("\t\tLnkCtl:\tASPM %s;", aspm_enabled(w & PCI_EXP_LNKCTL_ASPM));
+  printf(" Disabled%c CommClk%c\n\t\t\tExtSynch%c ClockPM%c AutWidDis%c BWInt%c AutBWInt%c\n",
+    FLAG(w, PCI_EXP_LNKCTL_DISABLE),
+    FLAG(w, PCI_EXP_LNKCTL_CLOCK),
+    FLAG(w, PCI_EXP_LNKCTL_XSYNCH),
+    FLAG(w, PCI_EXP_LNKCTL_CLOCKPM),
+    FLAG(w, PCI_EXP_LNKCTL_HWAUTWD),
+    FLAG(w, PCI_EXP_LNKCTL_BWMIE),
+    FLAG(w, PCI_EXP_LNKCTL_AUTBWIE));
+
+  w = pdev->rcd_link_status;
+  sta_speed = w & PCI_EXP_LNKSTA_SPEED;
+  sta_width = (w & PCI_EXP_LNKSTA_WIDTH) >> 4;
+  printf("\t\tLnkSta:\tSpeed %s%s, Width x%d%s\n",
+    link_speed(sta_speed),
+    link_compare(PCI_EXP_TYPE_ROOT_INT_EP, sta_speed, cap_speed),
+    sta_width,
+    link_compare(PCI_EXP_TYPE_ROOT_INT_EP, sta_width, cap_width));
+  printf("\t\t\tTrErr%c Train%c SlotClk%c DLActive%c BWMgmt%c ABWMgmt%c\n",
+    FLAG(w, PCI_EXP_LNKSTA_TR_ERR),
+    FLAG(w, PCI_EXP_LNKSTA_TRAIN),
+    FLAG(w, PCI_EXP_LNKSTA_SL_CLK),
+    FLAG(w, PCI_EXP_LNKSTA_DL_ACT),
+    FLAG(w, PCI_EXP_LNKSTA_BWMGMT),
+    FLAG(w, PCI_EXP_LNKSTA_AUTBW));
+}
+
 static int
 cap_express(struct device *d, int where, int cap)
 {
@@ -1428,7 +1502,7 @@ cap_express(struct device *d, int where, int cap)
     default:
       printf("Unknown type %d", type);
   }
-  printf(", MSI %02x\n", (cap & PCI_EXP_FLAGS_IRQ) >> 9);
+  printf(", IntMsgNum %d\n", (cap & PCI_EXP_FLAGS_IRQ) >> 9);
   if (verbose < 2)
     return type;
 
@@ -1443,6 +1517,9 @@ cap_express(struct device *d, int where, int cap)
   cap_express_dev(d, where, type);
   if (link)
     cap_express_link(d, where, type);
+  else if (d->dev->rcd_link_cap)
+    cap_express_link_rcd(d);
+   
   if (slot)
     cap_express_slot(d, where);
   if (type == PCI_EXP_TYPE_ROOT_PORT || type == PCI_EXP_TYPE_ROOT_EC)

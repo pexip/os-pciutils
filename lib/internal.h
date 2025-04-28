@@ -3,8 +3,13 @@
  *
  *	Copyright (c) 1997--2022 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
+
+#ifndef _INTERNAL_H
+#define _INTERNAL_H
 
 #include "config.h"
 
@@ -15,18 +20,19 @@
 // optimizations is happy to optimize them away, leading to linker failures.
 #define VERSIONED_ABI __attribute__((used)) PCI_ABI
 #ifdef __APPLE__
-#define STATIC_ALIAS(_decl, _for) _decl PCI_ABI { return _for; }
+#define STATIC_ALIAS(_decl, _for) VERSIONED_ABI _decl { return _for; }
 #define DEFINE_ALIAS(_decl, _for)
 #define SYMBOL_VERSION(_int, _ext)
 #else
-#define STATIC_ALIAS(_decl, _for)
-#define DEFINE_ALIAS(_decl, _for) extern _decl __attribute__((alias(#_for)))
+#define DEFINE_ALIAS(_decl, _for) extern _decl __attribute__((alias(#_for))) VERSIONED_ABI
 #ifdef _WIN32
+#define STATIC_ALIAS(_decl, _for) VERSIONED_ABI _decl { return _for; }
 /* GCC does not support asm .symver directive for Windows targets, so define new external global function symbol as alias to internal symbol */
 #define SYMBOL_VERSION(_int, _ext) asm(".globl\t" PCI_STRINGIFY(__MINGW_USYMBOL(_ext)) "\n\t" \
                                        ".def\t"   PCI_STRINGIFY(__MINGW_USYMBOL(_ext)) ";\t.scl\t2;\t.type\t32;\t.endef\n\t" \
                                        ".set\t"   PCI_STRINGIFY(__MINGW_USYMBOL(_ext)) "," PCI_STRINGIFY(__MINGW_USYMBOL(_int)))
 #else
+#define STATIC_ALIAS(_decl, _for)
 #define SYMBOL_VERSION(_int, _ext) asm(".symver " #_int "," #_ext)
 #endif
 #endif
@@ -81,6 +87,8 @@ int pci_emulated_read(struct pci_dev *d, int pos, byte *buf, int len);
 void *pci_malloc(struct pci_access *, int);
 void pci_mfree(void *);
 char *pci_strdup(struct pci_access *a, const char *s);
+struct pci_access *pci_clone_access(struct pci_access *a);
+int pci_init_internal(struct pci_access *a, int skip_method);
 
 void pci_init_v30(struct pci_access *a) VERSIONED_ABI;
 void pci_init_v35(struct pci_access *a) VERSIONED_ABI;
@@ -96,6 +104,7 @@ int pci_fill_info_v33(struct pci_dev *, int flags) VERSIONED_ABI;
 int pci_fill_info_v34(struct pci_dev *, int flags) VERSIONED_ABI;
 int pci_fill_info_v35(struct pci_dev *, int flags) VERSIONED_ABI;
 int pci_fill_info_v38(struct pci_dev *, int flags) VERSIONED_ABI;
+int pci_fill_info_v313(struct pci_dev *, int flags) VERSIONED_ABI;
 
 static inline int want_fill(struct pci_dev *d, unsigned want_fields, unsigned int try_fields)
 {
@@ -123,7 +132,7 @@ struct pci_property {
 char *pci_set_property(struct pci_dev *d, u32 key, char *value);
 
 /* params.c */
-void pci_define_param(struct pci_access *acc, char *param, char *val, char *help);
+struct pci_param *pci_define_param(struct pci_access *acc, char *param, char *val, char *help);
 int pci_set_param_internal(struct pci_access *acc, char *param, char *val, int copy);
 void pci_free_params(struct pci_access *acc);
 
@@ -134,5 +143,7 @@ void pci_free_caps(struct pci_dev *);
 extern struct pci_methods pm_intel_conf1, pm_intel_conf2, pm_linux_proc,
 	pm_fbsd_device, pm_aix_device, pm_nbsd_libpci, pm_obsd_device,
 	pm_dump, pm_linux_sysfs, pm_darwin, pm_sylixos_device, pm_hurd,
-	pm_mmio_conf1, pm_mmio_conf1_ext,
-	pm_win32_cfgmgr32, pm_win32_kldbg, pm_win32_sysdbg;
+	pm_mmio_conf1, pm_mmio_conf1_ext, pm_ecam,
+	pm_win32_cfgmgr32, pm_win32_kldbg, pm_win32_sysdbg, pm_aos_expansion;
+
+#endif

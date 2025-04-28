@@ -3,13 +3,15 @@
  *
  *      Copyright (c) 2022 Pali Rohár <pali@kernel.org>
  *
- *      Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <windows.h>
 
 #include "internal.h"
-#include "i386-io-windows.h"
+#include "win32-helpers.h"
 
 #ifndef NTSTATUS
 #define NTSTATUS LONG
@@ -123,9 +125,9 @@ win32_sysdbg_setup(struct pci_access *a)
   if (win32_sysdbg_initialized)
     return 1;
 
-  prev_error_mode = change_error_mode(SEM_FAILCRITICALERRORS);
+  prev_error_mode = win32_change_error_mode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
   ntdll = LoadLibrary(TEXT("ntdll.dll"));
-  change_error_mode(prev_error_mode);
+  win32_change_error_mode(prev_error_mode);
   if (!ntdll)
     {
       a->debug("Cannot open ntdll.dll library.");
@@ -177,7 +179,7 @@ win32_sysdbg_setup(struct pci_access *a)
       return 0;
     }
 
-  if (!enable_privilege(luid_debug_privilege, &revert_token, &revert_only_privilege))
+  if (!win32_enable_privilege(luid_debug_privilege, &revert_token, &revert_only_privilege))
     {
       a->debug("Cannot enable Debug privilege.");
       FreeLibrary(ntdll);
@@ -195,7 +197,7 @@ win32_sysdbg_setup(struct pci_access *a)
       return 1;
     }
 
-  revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
+  win32_revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
   revert_token = NULL;
   revert_only_privilege = FALSE;
 
@@ -242,7 +244,7 @@ win32_sysdbg_cleanup(struct pci_access *a UNUSED)
 
   if (debug_privilege_enabled)
     {
-      revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
+      win32_revert_privilege(luid_debug_privilege, revert_token, revert_only_privilege);
       revert_token = NULL;
       revert_only_privilege = FALSE;
       debug_privilege_enabled = FALSE;
@@ -288,17 +290,13 @@ win32_sysdbg_write(struct pci_dev *d, int pos, byte *buf, int len)
 }
 
 struct pci_methods pm_win32_sysdbg = {
-  "win32-sysdbg",
-  "Win32 PCI config space access using NT SysDbg Bus Data interface",
-  NULL,					/* config */
-  win32_sysdbg_detect,
-  win32_sysdbg_init,
-  win32_sysdbg_cleanup,
-  pci_generic_scan,
-  pci_generic_fill_info,
-  win32_sysdbg_read,
-  win32_sysdbg_write,
-  NULL,					/* read_vpd */
-  NULL,					/* init_dev */
-  NULL					/* cleanup_dev */
+  .name = "win32-sysdbg",
+  .help = "Win32 PCI config space access using NT SysDbg Bus Data interface",
+  .detect = win32_sysdbg_detect,
+  .init = win32_sysdbg_init,
+  .cleanup = win32_sysdbg_cleanup,
+  .scan = pci_generic_scan,
+  .fill_info = pci_generic_fill_info,
+  .read = win32_sysdbg_read,
+  .write = win32_sysdbg_write,
 };

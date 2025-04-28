@@ -7,7 +7,7 @@ case "$1" in
 install|upgrade)
   for ext in new neww old
   do
-    rm -f /var/lib/pciutils/pci.ids.$ext
+    rm -f $DPKG_ROOT/var/lib/pciutils/pci.ids.$ext
   done
   ;;
 abort-upgrade)

@@ -1,9 +1,11 @@
 /*
  *	The PCI Library -- Initialization and related things
  *
- *	Copyright (c) 1997--2018 Martin Mares <mj@ucw.cz>
+ *	Copyright (c) 1997--2024 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+.
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <stdio.h>
@@ -13,8 +15,61 @@
 
 #include "internal.h"
 
+#ifdef PCI_OS_DJGPP
+#include <crt0.h> /* for __dos_argv0 */
+#endif
+
 #ifdef PCI_OS_WINDOWS
+
 #include <windows.h>
+
+/* Force usage of ANSI (char*) variant of GetModuleFileName() function */
+#ifdef _WIN32
+#ifdef GetModuleFileName
+#undef GetModuleFileName
+#endif
+#define GetModuleFileName GetModuleFileNameA
+#endif
+
+/* Define __ImageBase for all linkers */
+#ifdef _WIN32
+/* GNU LD provides __ImageBase symbol since 2.19, in previous versions it is
+ * under name _image_base__, so add weak alias for compatibility. */
+#ifdef __GNUC__
+asm(".weak\t" PCI_STRINGIFY(__MINGW_USYMBOL(__ImageBase)) "\n\t"
+    ".set\t"  PCI_STRINGIFY(__MINGW_USYMBOL(__ImageBase)) "," PCI_STRINGIFY(__MINGW_USYMBOL(_image_base__)));
+#endif
+/*
+ * MSVC link.exe provides __ImageBase symbol since 12.00 (MSVC 6.0), for
+ * previous versions resolve it at runtime via GetModuleHandleA() which
+ * returns base for main executable or via VirtualQuery() for DLL builds.
+ */
+#if defined(_MSC_VER) && _MSC_VER < 1200
+static HMODULE
+get_current_module_handle(void)
+{
+#ifdef PCI_SHARED_LIB
+  MEMORY_BASIC_INFORMATION info;
+  size_t len = VirtualQuery(&get_current_module_handle, &info, sizeof(info));
+  if (len != sizeof(info))
+    return NULL;
+  return (HMODULE)info.AllocationBase;
+#else
+  return GetModuleHandleA(NULL);
+#endif
+}
+#define __ImageBase (*(IMAGE_DOS_HEADER *)get_current_module_handle())
+#else
+extern IMAGE_DOS_HEADER __ImageBase;
+#endif
+#endif
+
+#if defined(_WINDLL)
+extern HINSTANCE _hModule;
+#elif defined(_WINDOWS)
+extern HINSTANCE _hInstance;
+#endif
+
 #endif
 
 static struct pci_methods *pci_methods[PCI_ACCESS_MAX] = {
@@ -98,6 +153,16 @@ static struct pci_methods *pci_methods[PCI_ACCESS_MAX] = {
   NULL,
   NULL,
 #endif
+#if defined(PCI_HAVE_PM_ECAM)
+  &pm_ecam,
+#else
+  NULL,
+#endif
+#if defined(PCI_HAVE_PM_AOS_EXPANSION)
+  &pm_aos_expansion,
+#else
+  NULL,
+#endif
 };
 
 // If PCI_ACCESS_AUTO is selected, we probe the access methods in this order
@@ -115,7 +180,9 @@ static int probe_sequence[] = {
   PCI_ACCESS_WIN32_CFGMGR32,
   PCI_ACCESS_WIN32_KLDBG,
   PCI_ACCESS_WIN32_SYSDBG,
+  PCI_ACCESS_AOS_EXPANSION,
   // Low-level methods poking the hardware directly
+  PCI_ACCESS_ECAM,
   PCI_ACCESS_I386_TYPE1,
   PCI_ACCESS_I386_TYPE2,
   PCI_ACCESS_MMIO_TYPE1_EXT,
@@ -213,7 +280,7 @@ pci_get_method_name(int index)
     return pci_methods[index]->name;
 }
 
-#ifdef PCI_OS_WINDOWS
+#if defined(PCI_OS_WINDOWS) || defined(PCI_OS_DJGPP)
 
 static void
 pci_init_name_list_path(struct pci_access *a)
@@ -223,13 +290,107 @@ pci_init_name_list_path(struct pci_access *a)
   else
     {
       char *path, *sep;
-      DWORD len;
+      size_t len;
 
-      path = pci_malloc(a, MAX_PATH+1);
-      len = GetModuleFileNameA(NULL, path, MAX_PATH+1);
-      sep = (len > 0) ? strrchr(path, '\\') : NULL;
-      if (len == 0 || len == MAX_PATH+1 || !sep || MAX_PATH-(size_t)(sep+1-path) < sizeof(PCI_IDS))
+#if defined(PCI_OS_WINDOWS) && (defined(_WIN32) || defined(_WINDLL) || defined(_WINDOWS))
+
+      HMODULE module;
+      size_t size;
+
+#if defined(_WIN32)
+      module = (HINSTANCE)&__ImageBase;
+#elif defined(_WINDLL)
+      module = _hModule;
+#elif defined(_WINDOWS)
+      module = _hInstance;
+#endif
+
+      /*
+       * Module file name can have arbitrary length despite all MS examples say
+       * about MAX_PATH upper limit. This limit does not apply for example when
+       * executable is running from network disk with very long UNC paths or
+       * when using "\\??\\" prefix for specifying executable binary path.
+       * Function GetModuleFileName() returns passed size argument when passed
+       * buffer is too small and does not signal any error. In this case retry
+       * again with larger buffer.
+       */
+      size = 256; /* initial buffer size (more than sizeof(PCI_IDS)-4) */
+retry:
+      path = pci_malloc(a, size);
+      len = GetModuleFileName(module, path, size-sizeof(PCI_IDS)-4); /* 4 for "\\\\?\\" */
+      if (len >= size-sizeof(PCI_IDS)-4)
         {
+          free(path);
+          size *= 2;
+          goto retry;
+        }
+      else if (len == 0)
+        path[0] = '\0';
+
+      /*
+       * GetModuleFileName() has bugs. On Windows 10 it prepends current drive
+       * letter if path is just pure NT namespace (with "\\??\\" prefix). Such
+       * extra drive letter makes path fully invalid and unusable. So remove
+       * extra drive letter to make path valid again.
+       * Reproduce: CreateProcessW("\\??\\C:\\lspci.exe", ...)
+       */
+      if (((path[0] >= 'a' && path[0] <= 'z') ||
+           (path[0] >= 'A' && path[0] <= 'Z')) &&
+          strncmp(path+1, ":\\??\\", 5) == 0)
+        {
+          memmove(path, path+2, len-2);
+          len -= 2;
+          path[len] = '\0';
+        }
+
+      /*
+       * GetModuleFileName() has bugs. On Windows 10 it does not add "\\\\?\\"
+       * prefix when path is in native NT UNC namespace. Such path is treated by
+       * WinAPI/DOS functions as standard DOS path relative to the current
+       * directory, hence something completely different. So prepend missing
+       * "\\\\?\\" prefix to make path valid again.
+       * Reproduce: CreateProcessW("\\??\\UNC\\10.0.2.4\\qemu\\lspci.exe", ...)
+       *
+       * If path starts with DOS drive letter and with appended PCI_IDS is
+       * longer than 260 bytes and is without "\\\\?\\" prefix then append it.
+       * This prefix is required for paths and file names with DOS drive letter
+       * longer than 260 bytes.
+       */
+      if (strncmp(path, "\\UNC\\", 5) == 0 ||
+          strncmp(path, "UNC\\", 4) == 0 ||
+          (((path[0] >= 'a' && path[0] <= 'z') || (path[0] >= 'A' && path[0] <= 'Z')) &&
+           len + sizeof(PCI_IDS) >= 260))
+        {
+          memmove(path+4, path, len);
+          memcpy(path, "\\\\?\\", 4);
+          len += 4;
+          path[len] = '\0';
+        }
+
+#elif defined(PCI_OS_DJGPP) || defined(PCI_OS_WINDOWS)
+
+      const char *exe_path;
+
+#ifdef PCI_OS_DJGPP
+      exe_path = __dos_argv0;
+#else
+      exe_path = _pgmptr;
+#endif
+
+      len = strlen(exe_path);
+      path = pci_malloc(a, len+sizeof(PCI_IDS));
+      memcpy(path, exe_path, len+1);
+
+#endif
+
+      sep = strrchr(path, '\\');
+      if (!sep)
+        {
+          /*
+           * If current module path (current executable for static builds or
+           * current DLL library for shared build) cannot be determined then
+           * fallback to the current directory.
+           */
           free(path);
           pci_set_name_list_path(a, PCI_IDS, 0);
         }
@@ -238,6 +399,25 @@ pci_init_name_list_path(struct pci_access *a)
           memcpy(sep+1, PCI_IDS, sizeof(PCI_IDS));
           pci_set_name_list_path(a, path, 1);
         }
+    }
+}
+
+#elif defined PCI_OS_AMIGAOS
+
+static void
+pci_init_name_list_path(struct pci_access *a)
+{
+  int len = strlen(PCI_PATH_IDS_DIR);
+
+  if (!len)
+    pci_set_name_list_path(a, PCI_IDS, 0);
+  else
+    {
+      char last_char = PCI_PATH_IDS_DIR[len - 1];
+      if (last_char == ':' || last_char == '/')  // root or parent char
+	pci_set_name_list_path(a, PCI_PATH_IDS_DIR PCI_IDS, 0);
+      else
+	pci_set_name_list_path(a, PCI_PATH_IDS_DIR "/" PCI_IDS, 0);
     }
 }
 
@@ -251,6 +431,27 @@ pci_init_name_list_path(struct pci_access *a)
 
 #endif
 
+#ifdef PCI_USE_DNS
+
+static void
+pci_init_dns(struct pci_access *a)
+{
+  pci_define_param(a, "net.domain", PCI_ID_DOMAIN, "DNS domain used for resolving of ID's");
+  a->id_lookup_mode = PCI_LOOKUP_CACHE;
+
+  char *cache_dir = getenv("XDG_CACHE_HOME");
+  if (!cache_dir)
+    cache_dir = "~/.cache";
+
+  int name_len = strlen(cache_dir) + 32;
+  char *cache_name = pci_malloc(NULL, name_len);
+  snprintf(cache_name, name_len, "%s/pci-ids", cache_dir);
+  struct pci_param *param = pci_define_param(a, "net.cache_name", cache_name, "Name of the ID cache file");
+  param->value_malloced = 1;
+}
+
+#endif
+
 struct pci_access *
 pci_alloc(void)
 {
@@ -260,9 +461,7 @@ pci_alloc(void)
   memset(a, 0, sizeof(*a));
   pci_init_name_list_path(a);
 #ifdef PCI_USE_DNS
-  pci_define_param(a, "net.domain", PCI_ID_DOMAIN, "DNS domain used for resolving of ID's");
-  pci_define_param(a, "net.cache_name", "~/.pciids-cache", "Name of the ID cache file");
-  a->id_lookup_mode = PCI_LOOKUP_CACHE;
+  pci_init_dns(a);
 #endif
 #ifdef PCI_HAVE_HWDB
   pci_define_param(a, "hwdb.disable", "0", "Do not look up names in UDEV's HWDB if non-zero");
@@ -273,8 +472,8 @@ pci_alloc(void)
   return a;
 }
 
-void
-pci_init_v35(struct pci_access *a)
+int
+pci_init_internal(struct pci_access *a, int skip_method)
 {
   if (!a->error)
     a->error = pci_generic_error;
@@ -285,7 +484,7 @@ pci_init_v35(struct pci_access *a)
   if (!a->debugging)
     a->debug = pci_null_debug;
 
-  if (a->method)
+  if (a->method != PCI_ACCESS_AUTO)
     {
       if (a->method >= PCI_ACCESS_MAX || !pci_methods[a->method])
 	a->error("This access method is not supported.");
@@ -299,6 +498,8 @@ pci_init_v35(struct pci_access *a)
 	  struct pci_methods *m = pci_methods[probe_sequence[i]];
 	  if (!m)
 	    continue;
+	  if (skip_method == probe_sequence[i])
+	    continue;
 	  a->debug("Trying method %s...", m->name);
 	  if (m->detect(a))
 	    {
@@ -310,16 +511,39 @@ pci_init_v35(struct pci_access *a)
 	  a->debug("...No.\n");
 	}
       if (!a->methods)
-	a->error("Cannot find any working access method.");
+	return 0;
     }
   a->debug("Decided to use %s\n", a->methods->name);
   a->methods->init(a);
+  return 1;
+}
+
+void
+pci_init_v35(struct pci_access *a)
+{
+  if (!pci_init_internal(a, -1))
+    a->error("Cannot find any working access method.");
 }
 
 STATIC_ALIAS(void pci_init(struct pci_access *a), pci_init_v35(a));
 DEFINE_ALIAS(void pci_init_v30(struct pci_access *a), pci_init_v35);
 SYMBOL_VERSION(pci_init_v30, pci_init@LIBPCI_3.0);
 SYMBOL_VERSION(pci_init_v35, pci_init@@LIBPCI_3.5);
+
+struct pci_access *
+pci_clone_access(struct pci_access *a)
+{
+  struct pci_access *b = pci_alloc();
+
+  b->writeable = a->writeable;
+  b->buscentric = a->buscentric;
+  b->debugging = a->debugging;
+  b->error = a->error;
+  b->warning = a->warning;
+  b->debug = a->debug;
+
+  return b;
+}
 
 void
 pci_cleanup(struct pci_access *a)

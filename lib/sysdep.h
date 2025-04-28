@@ -3,7 +3,9 @@
  *
  *	Copyright (c) 1997--2020 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #ifdef __GNUC__
@@ -23,6 +25,13 @@ typedef u16 word;
 #ifdef PCI_OS_WINDOWS
 #define strcasecmp _strcmpi
 #define strncasecmp _strnicmp
+#if defined(_MSC_VER) && _MSC_VER < 1800
+#if _MSC_VER < 1300
+#define strtoull strtoul
+#else
+#define strtoull _strtoui64
+#endif
+#endif
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
@@ -74,6 +83,10 @@ typedef u16 word;
 #endif
 #endif
 
+#ifdef PCI_OS_HAIKU
+#include <endian.h>
+#endif
+
 #ifdef PCI_OS_SYLIXOS
 #include <endian.h>
 #endif
@@ -82,6 +95,10 @@ typedef u16 word;
   #define BIG_ENDIAN 4321
   #define LITTLE_ENDIAN	1234
   #define BYTE_ORDER LITTLE_ENDIAN
+#endif
+
+#ifdef PCI_OS_AMIGAOS
+  #include <machine/endian.h>
 #endif
 
 #if !defined(BYTE_ORDER)

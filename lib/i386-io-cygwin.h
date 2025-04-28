@@ -3,10 +3,14 @@
  *
  *	Copyright (c) 1997--2006 Martin Mares <mj@ucw.cz>
  *
- *	Can be freely distributed and used under the terms of the GNU GPL.
+ *	Can be freely distributed and used under the terms of the GNU GPL v2+
+ *
+ *	SPDX-License-Identifier: GPL-2.0-or-later
  */
 
 #include <sys/io.h>
+
+#include "i386-io-access.h"
 
 static int
 intel_setup_io(struct pci_access *a UNUSED)

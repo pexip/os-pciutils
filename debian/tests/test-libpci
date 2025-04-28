@@ -35,5 +35,5 @@ EOF
 
 # Test building minimal code against the installed library.
 $CC $CFLAGS -o test-dynamic test-libpci.c $LIBS
- test -x ./test-dynamic
+test -x ./test-dynamic
 ./test-dynamic

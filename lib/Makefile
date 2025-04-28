@@ -20,6 +20,12 @@ endif
 
 ifdef PCI_HAVE_PM_MMIO_CONF
 OBJS += mmio-ports
+PCI_USE_PHYSMEM = 1
+endif
+
+ifdef PCI_HAVE_PM_ECAM
+OBJS += ecam
+PCI_USE_PHYSMEM = 1
 endif
 
 ifdef PCI_HAVE_PM_DUMP
@@ -71,6 +77,22 @@ ifdef PCI_HAVE_PM_WIN32_SYSDBG
 OBJS += win32-sysdbg
 endif
 
+ifdef PCI_OS_WINDOWS
+OBJS += win32-helpers
+endif
+
+ifdef PCI_USE_PHYSMEM
+ifndef PCI_OS_WINDOWS
+ifndef PCI_OS_DJGPP
+OBJS += physmem-posix
+endif
+endif
+endif
+
+ifdef PCI_HAVE_PM_AOS_EXPANSION
+OBJS += aos-expansion
+endif
+
 all: $(PCILIB) $(PCILIBPC)
 
 ifeq ($(SHARED),no)
@@ -118,10 +140,11 @@ $(PCILIBPC): libpci.pc.in
 init.o: init.c $(INCL)
 access.o: access.c $(INCL)
 params.o: params.c $(INCL)
-i386-ports.o: i386-ports.c $(INCL) i386-io-hurd.h i386-io-linux.h i386-io-sunos.h i386-io-windows.h i386-io-cygwin.h
-mmio-ports.o: mmio-ports.c $(INCL)
-proc.o: proc.c $(INCL) pread.h
-sysfs.o: sysfs.c $(INCL) pread.h
+i386-ports.o: i386-ports.c $(INCL) i386-io-access.h i386-io-beos.h i386-io-cygwin.h i386-io-djgpp.h i386-io-haiku.h i386-io-hurd.h i386-io-linux.h i386-io-openbsd.h i386-io-sunos.h i386-io-windows.h
+mmio-ports.o: mmio-ports.c $(INCL) physmem.h physmem-access.h
+ecam.o: ecam.c $(INCL) physmem.h physmem-access.h
+proc.o: proc.c $(INCL)
+sysfs.o: sysfs.c $(INCL)
 generic.o: generic.c $(INCL)
 emulated.o: emulated.c $(INCL)
 syscalls.o: syscalls.c $(INCL)
@@ -138,9 +161,11 @@ names-hwdb.o: names-hwdb.c $(INCL) names.h
 filter.o: filter.c $(INCL)
 nbsd-libpci.o: nbsd-libpci.c $(INCL)
 hurd.o: hurd.c $(INCL)
-win32-cfgmgr32.o: win32-cfgmgr32.c $(INCL)
-win32-kldbg.o: win32-kldbg.c $(INCL)
-win32-sysdbg.o: win32-sysdbg.c $(INCL)
+win32-helpers.o: win32-helpers.c $(INCL) win32-helpers.h
+win32-cfgmgr32.o: win32-cfgmgr32.c $(INCL) win32-helpers.h
+win32-kldbg.o: win32-kldbg.c $(INCL) win32-helpers.h
+win32-sysdbg.o: win32-sysdbg.c $(INCL) win32-helpers.h
+i386-io-windows.h: win32-helpers.h
 
 # MinGW32 toolchain has some required Win32 header files in /ddk subdirectory.
 # But these header files include another header files from /ddk subdirectory

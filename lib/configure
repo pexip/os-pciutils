@@ -68,14 +68,17 @@ LSPCIDIR=SBINDIR
 
 case $sys in
 	linux*)
-		echo_n " sysfs proc mem-ports"
+		echo_n " sysfs proc mem-ports ecam"
 		echo >>$c '#define PCI_HAVE_PM_LINUX_SYSFS'
 		echo >>$c '#define PCI_HAVE_PM_LINUX_PROC'
 		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
 		echo >>$c '#define PCI_HAVE_LINUX_BYTEORDER_H'
 		echo >>$c '#define PCI_PATH_PROC_BUS_PCI "/proc/bus/pci"'
 		echo >>$c '#define PCI_PATH_SYS_BUS_PCI "/sys/bus/pci"'
 		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG "/sys/firmware/acpi/tables/MCFG"'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB "/sys/firmware/efi/systab"'
 		case $cpu in
 				i?86|x86_64)	echo_n " i386-ports"
 						echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
@@ -85,33 +88,46 @@ case $sys in
 		LSPCIDIR=BINDIR
 		;;
 	sunos)
+		echo_n " mem-ports ecam"
 		case $cpu in
 				i?86)		echo_n " i386-ports"
 						echo >>$c "#define PCI_HAVE_PM_INTEL_CONF"
 						;;
-				*)
-						echo " The PCI library does not support Solaris for this architecture: $cpu"
-						exit 1
-						;;
 		esac
-		echo >>$c '#define PCI_HAVE_STDINT_H'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/xsvc"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG ""'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB ""'
 		;;
 	freebsd*|kfreebsd*)
-		echo_n " fbsd-device mem-ports"
+		echo_n " fbsd-device mem-ports ecam"
 		echo >>$c '#define PCI_HAVE_PM_FBSD_DEVICE'
 		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
 		echo >>$c '#define PCI_PATH_FBSD_DEVICE "/dev/pci"'
 		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG ""'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB ""'
 		if [ "$sys" != "kfreebsd" ] ; then
 			LIBRESOLV=
 		fi
 		;;
         openbsd)
-	        echo_n " obsd-device mem-ports"
+	        echo_n " obsd-device mem-ports ecam"
 		echo >>$c '#define PCI_HAVE_PM_OBSD_DEVICE'
 		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
 		echo >>$c '#define PCI_PATH_OBSD_DEVICE "/dev/pci"'
 		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG "/var/db/acpi/MCFG.*"'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB ""'
+		case $cpu in
+				i386|amd64)	echo_n " i386-ports"
+						echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
+						echo >>$m 'WITH_LIBS+=-l'$cpu
+						;;
+		esac
 		LIBRESOLV=
 		;;
 
@@ -132,11 +148,14 @@ case $sys in
 		echo >>$m 'DIRINSTALL=mkdir -p'
 		;;
 	netbsd)
-		echo_n " nbsd-libpci mem-ports"
+		echo_n " nbsd-libpci mem-ports ecam"
 		echo >>$c '#define PCI_HAVE_PM_NBSD_LIBPCI'
 		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
 		echo >>$c '#define PCI_PATH_NBSD_DEVICE "/dev/pci0"'
 		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/mem"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG ""'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB ""'
 		echo >>$c '#define PCI_HAVE_64BIT_ADDRESS'
 		echo >>$m 'LIBNAME=libpciutils'
 		echo >>$m 'WITH_LIBS+=-lpci'
@@ -178,12 +197,20 @@ case $sys in
 		LIBEXT=dll
 		;;
 	beos|haiku)
+		echo_n " mem-ports ecam"
 		case $cpu in
 				i?86|x86_64)	echo_n " i386-ports"
 						echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
 						;;
 		esac
-		echo >>$c '#define PCI_HAVE_STDINT_H'
+		echo >>$c '#define PCI_HAVE_PM_MMIO_CONF'
+		echo >>$c '#define PCI_HAVE_PM_ECAM'
+		echo >>$c '#define PCI_PATH_DEVMEM_DEVICE "/dev/misc/mem"'
+		echo >>$c '#define PCI_PATH_ACPI_MCFG ""'
+		echo >>$c '#define PCI_PATH_EFI_SYSTAB ""'
+		if [ "$sys" != "beos" ] ; then
+			LIBRESOLV=-lnetwork
+		fi
 		;;
 	sylixos)
 		echo >>$c '#define PCI_PATH_SYLIXOS_DEVICE "/proc/pci"'
@@ -191,6 +218,13 @@ case $sys in
 		echo >>$c '#define PCI_HAVE_PM_SYLIXOS_DEVICE'
 		IDSDIR="/etc/pci"
 		LIBRESOLV=
+		;;
+	amigaos)
+		echo_n " aos-expansion"
+		echo >>$c '#define PCI_HAVE_STDINT_H'
+		echo >>$c '#define PCI_HAVE_PM_AOS_EXPANSION'
+		IDSDIR="DEVS:"
+		echo >>$m 'CC=gcc'
 		;;
 	*)
 		echo " Unfortunately, your OS is not supported by the PCI Library"
@@ -330,4 +364,5 @@ else
 fi
 
 echo >>$c "#define PCILIB_VERSION \"$VERSION\""
+echo >>$c "#define PCILIB_DATE_AMIGAOS \"`echo $DATE | sed 's/\(....\)-\(..\)-\(..\)/\3.\2.\1/'`\""
 sed '/"/{s/^#define \([^ ]*\) "\(.*\)"$/\1=\2/;p;d;};s/^#define \(.*\)/\1=1/' <$c >>$m
